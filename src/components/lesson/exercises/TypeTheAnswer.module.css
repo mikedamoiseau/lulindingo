@@ -1,0 +1,78 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.instruction {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  padding: var(--space-md) var(--space-lg);
+}
+
+.equation {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  color: var(--blue);
+}
+
+.blank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-md);
+  border: 3px solid var(--blue);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: var(--text-3xl);
+}
+
+.inputArea {
+  padding: 0 var(--space-lg) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.inputField {
+  width: 100%;
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+}
+
+.placeholder {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.checkButton {
+  width: 100%;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--border);
+  color: var(--text-secondary);
+  font-size: var(--text-base);
+  font-weight: 800;
+  letter-spacing: 1px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.checkButton:not(:disabled) {
+  background: var(--green);
+  color: var(--text-primary);
+}

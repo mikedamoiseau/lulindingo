@@ -1,0 +1,94 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.instruction {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  padding: var(--space-md) var(--space-lg);
+}
+
+.table {
+  margin: var(--space-lg);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.row:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+
+.cell {
+  padding: var(--space-md) var(--space-lg);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  text-align: center;
+  color: var(--blue);
+}
+
+.cell:first-child {
+  border-right: 1px solid var(--border);
+}
+
+.blankCell {
+  background: rgba(28, 176, 246, 0.1);
+}
+
+.options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+  padding: 0 var(--space-lg);
+  flex: 1;
+  align-content: start;
+}
+
+.option {
+  padding: var(--space-xl) var(--space-lg);
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  text-align: center;
+  transition: border-color 0.2s;
+}
+
+.option:hover {
+  border-color: var(--text-secondary);
+}
+
+.selected {
+  border-color: var(--green);
+  background: rgba(88, 204, 2, 0.1);
+}
+
+.checkArea {
+  padding: var(--space-md) var(--space-lg);
+  margin-top: auto;
+}
+
+.checkButton {
+  width: 100%;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--border);
+  color: var(--text-secondary);
+  font-size: var(--text-base);
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.checkButton:not(:disabled) {
+  background: var(--green);
+  color: var(--text-primary);
+}
