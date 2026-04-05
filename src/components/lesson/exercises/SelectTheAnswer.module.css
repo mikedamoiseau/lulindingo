@@ -1,0 +1,81 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.instruction {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  padding: var(--space-md) var(--space-lg);
+}
+
+.equation {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  color: var(--blue);
+}
+
+.blank {
+  display: inline-block;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-md);
+  border: 3px solid var(--blue);
+  background: var(--surface);
+}
+
+.options {
+  padding: 0 var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.option {
+  width: 100%;
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  text-align: center;
+  transition: border-color 0.2s;
+}
+
+.option:hover {
+  border-color: var(--text-secondary);
+}
+
+.selected {
+  border-color: var(--blue);
+  background: rgba(28, 176, 246, 0.1);
+}
+
+.checkArea {
+  padding: var(--space-md) var(--space-lg);
+}
+
+.checkButton {
+  width: 100%;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--border);
+  color: var(--text-secondary);
+  font-size: var(--text-base);
+  font-weight: 800;
+  letter-spacing: 1px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.checkButton:not(:disabled) {
+  background: var(--green);
+  color: var(--text-primary);
+}

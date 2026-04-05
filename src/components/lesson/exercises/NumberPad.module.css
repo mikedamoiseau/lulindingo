@@ -1,0 +1,39 @@
+.pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+
+.bottomRow {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+}
+
+.key {
+  padding: var(--space-md) var(--space-sm);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  transition: background 0.1s, transform 0.1s;
+}
+
+.key:active {
+  transform: scale(0.95);
+  background: var(--border);
+}
+
+.deleteKey {
+  background: var(--surface);
+}

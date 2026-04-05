@@ -1,0 +1,16 @@
+.container {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.icon {
+  font-size: var(--text-lg);
+  display: inline-block;
+}
+
+.count {
+  font-size: var(--text-base);
+  font-weight: 800;
+  color: var(--pink);
+}

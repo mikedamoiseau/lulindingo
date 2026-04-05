@@ -1,0 +1,56 @@
+.banner {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--max-width);
+  padding: var(--space-lg);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+  z-index: 100;
+}
+
+.correct { background: #1b3a1b; }
+.wrong { background: #3a1b1b; }
+.retry { background: #3a2e1b; }
+
+.content {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.icon { font-size: var(--text-xl); }
+
+.message {
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+
+.wrongContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.explanation {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.continueBtn {
+  width: 100%;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+}
+
+.correctBtn { background: var(--green); }
+.correctBtn:hover { background: var(--green-hover); }
+.wrongBtn { background: var(--red); }
+.retryBtn { background: var(--orange); }
