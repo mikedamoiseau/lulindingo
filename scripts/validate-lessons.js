@@ -140,6 +140,14 @@ for (const file of files) {
         }
 
         if (unitTitle === 'Addition 2') {
+          if (parsed.left > 50 || parsed.right > 50) {
+            err(file, lesson.id, i, `Addition 2: operands should be 0-50, got ${parsed.left} and ${parsed.right}`);
+          }
+          const minOperand = Math.min(parsed.left, parsed.right);
+          const maxOperand = Math.max(parsed.left, parsed.right);
+          if (maxOperand < 10) {
+            err(file, lesson.id, i, `Addition 2: at least one operand should be >= 10, got ${parsed.left} and ${parsed.right}`);
+          }
           const sum = parsed.left + parsed.right;
           if (sum > 50) {
             err(file, lesson.id, i, `Addition 2: sum should not exceed 50, got ${sum}`);
