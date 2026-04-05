@@ -188,7 +188,7 @@ export const db = new Dexie('LuLinDingo');
 
 db.version(1).stores({
   users: '++id, name',
-  units: 'id, courseId, topic, order',
+  units: 'id, moduleId, topic, order',
   lessons: 'id, unitId, order',
   progress: 'lessonId, completed',
   streakHistory: 'date',
@@ -221,7 +221,7 @@ export async function seedDatabase() {
 ```js
 // src/data/math/units.js
 const units = [
-  { id: 'math-addition-1', courseId: 'math', title: 'Addition 1', topic: 'addition', order: 1, iconEmoji: '➕', description: 'Adding numbers 0-10' },
+  { id: 'math-addition-1', moduleId: 'math', title: 'Addition 1', topic: 'addition', order: 1, iconEmoji: '➕', description: 'Adding numbers 0-10' },
 ];
 
 export default units;
@@ -350,7 +350,7 @@ const useGameStore = create((set, get) => ({
       longestStreak: 0,
       lastActiveDate: null,
       ageBand,
-      soundEnabled: true,
+
       createdAt: new Date(),
     });
     const user = await db.users.get(id);
@@ -1333,7 +1333,7 @@ import styles from './LearningPath.module.css';
 
 export default function LearningPath() {
   const user = useGameStore((s) => s.user);
-  const units = useLiveQuery(() => db.units.where('courseId').equals('math').sortBy('order'), []);
+  const units = useLiveQuery(() => db.units.where('moduleId').equals('math').sortBy('order'), []);
   const lessons = useLiveQuery(() => db.lessons.orderBy('order').toArray(), []);
   const progress = useLiveQuery(() => db.progress.toArray(), []);
 
@@ -1470,7 +1470,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db/database';
 
 export default function UnitBadges({ styles }) {
-  const units = useLiveQuery(() => db.units.where('courseId').equals('math').sortBy('order'), []);
+  const units = useLiveQuery(() => db.units.where('moduleId').equals('math').sortBy('order'), []);
   const lessons = useLiveQuery(() => db.lessons.toArray(), []);
   const progress = useLiveQuery(() => db.progress.toArray(), []);
   if (!units || !lessons || !progress) return null;
@@ -1618,13 +1618,6 @@ export default function SettingsPanel() {
                 ))}
               </div>
             </div>
-            <div className={styles.section}>
-              <h3 className={styles.sectionTitle}>Sound</h3>
-              <button className={`${styles.toggle} ${user.soundEnabled ? styles.toggleOn : ''}`}
-                onClick={() => updateSettings({ soundEnabled: !user.soundEnabled })}>
-                {user.soundEnabled ? 'ON' : 'OFF'}
-              </button>
-            </div>
           </motion.div>
         </>
       )}
@@ -1648,8 +1641,6 @@ export default function SettingsPanel() {
 .selected { border-color: var(--blue); background: rgba(28,176,246,0.1); }
 .optLabel { font-weight: 800; }
 .optDesc { font-size: var(--text-sm); color: var(--text-secondary); }
-.toggle { padding: var(--space-sm) var(--space-lg); border-radius: var(--radius-full); border: 2px solid var(--border); background: var(--surface); color: var(--text-secondary); font-weight: 800; font-size: var(--text-sm); }
-.toggleOn { border-color: var(--green); color: var(--green); background: rgba(88,204,2,0.1); }
 ```
 
 - [ ] **Step 2: Add to App.jsx**
@@ -1680,9 +1671,9 @@ git commit -m "feat: add Settings slide-over panel"
 ```js
 // src/data/math/units.js
 const units = [
-  { id: 'math-addition-1', courseId: 'math', title: 'Addition 1', topic: 'addition', order: 1, iconEmoji: '➕', description: 'Adding numbers 0-10' },
-  { id: 'math-addition-2', courseId: 'math', title: 'Addition 2', topic: 'addition', order: 2, iconEmoji: '➕', description: 'Adding numbers 10-50' },
-  { id: 'math-subtraction-1', courseId: 'math', title: 'Subtraction 1', topic: 'subtraction', order: 3, iconEmoji: '➖', description: 'Subtracting numbers 0-10' },
+  { id: 'math-addition-1', moduleId: 'math', title: 'Addition 1', topic: 'addition', order: 1, iconEmoji: '➕', description: 'Adding numbers 0-10' },
+  { id: 'math-addition-2', moduleId: 'math', title: 'Addition 2', topic: 'addition', order: 2, iconEmoji: '➕', description: 'Adding numbers 10-50' },
+  { id: 'math-subtraction-1', moduleId: 'math', title: 'Subtraction 1', topic: 'subtraction', order: 3, iconEmoji: '➖', description: 'Subtracting numbers 0-10' },
 ];
 
 export default units;
@@ -1816,7 +1807,7 @@ git commit -m "feat: add Dingo mascot SVG with happy, thinking, celebrating expr
 4. Complete lesson — confetti, summary, mascot
 5. Home screen — node is green with stars, next node is current
 6. Progress tab — stats, calendar, unit badges
-7. Settings — change age band, sound toggle
+7. Settings — change age band
 
 - [ ] **Step 4: Invoke /frontend-design skill for visual polish**
 

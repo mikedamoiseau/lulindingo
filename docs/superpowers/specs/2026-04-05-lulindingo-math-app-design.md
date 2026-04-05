@@ -6,7 +6,7 @@
 
 ## Overview
 
-LuLinDingo is a Duolingo-inspired modular learning platform for kids ages 6-12. The platform is designed to host multiple subjects — **Mathematics ships as the first module in v1**. Future modules (e.g., Chess) can be added by dropping in new data and exercise components without rewriting the core app.
+LuLinDingo is a Duolingo-inspired modular learning platform for kids ages 6-12. The platform is designed to host multiple modules — **Mathematics ships as the first module in v1**. Future modules (e.g., Chess) can be added by dropping in new data and exercise components without rewriting the core app.
 
 The v1 release is deliberately small: 3 math units, 3 exercise types, and core gamification (XP, hearts, streaks). The goal is a shippable, testable product that validates the learning loop before expanding scope.
 
@@ -19,13 +19,13 @@ LuLinDingo is **not** a math app. It is a learning platform where Math is the fi
 For v1, this means:
 - Data files live under `src/data/math/` — a natural home for a future `src/data/chess/` etc.
 - Unit and lesson IDs are prefixed with the module name (e.g., `math-addition-1`) for uniqueness
-- The DB schema includes a `courseId` field on units so they can be filtered by module
+- The DB schema includes a `moduleId` field on units so they can be filtered by module
 - The app shell (navigation, gamification, onboarding) contains no math-specific logic
 
 What v1 does **not** build:
-- No courses table, course switcher UI, or generic course registry
-- No abstract "course plugin" system
-- No `activeCourseId` switching logic
+- No modules table, module switcher UI, or generic module registry
+- No abstract "module plugin" system
+- No `activeModuleId` switching logic
 
 The current codebase just loads Math. When a second module ships, we add the minimal plumbing needed at that point.
 
@@ -51,7 +51,7 @@ Everything below this line is what ships in v1.
 
 3. **Progress / Rewards** — Lightweight screen: current streak (fire icon + calendar), total XP, hearts remaining, and completed units with star ratings.
 
-4. **Settings** — Sound on/off, reset progress, age band selector. Accessed via gear icon on home screen header — not a dedicated tab.
+4. **Settings** — Reset progress, age band selector. Accessed via gear icon on home screen header — not a dedicated tab.
 
 ### Navigation
 
@@ -130,13 +130,12 @@ users {
   longestStreak: number
   lastActiveDate: string (YYYY-MM-DD)
   ageBand: "6-7" | "8-10" | "11-12"
-  soundEnabled: boolean
   createdAt: Date
 }
 
 units {
   id: string (e.g., "math-addition-1")
-  courseId: string (indexed — "math" for now, enables future filtering)
+  moduleId: string (indexed — "math" for now, enables future filtering)
   title: string
   topic: string (addition | subtraction)
   order: number
@@ -207,7 +206,7 @@ On first app load (after onboarding), Dexie populates IndexedDB from these files
 - Maximum 5 hearts
 - Lose 1 per wrong answer (after retry chance on TypeTheAnswer)
 - Refill 1 every 20 minutes (faster than Duolingo — less frustrating for kids)
-- At 0 hearts: cannot start new lessons, can practice completed lessons to earn hearts back (1 heart per practice completion)
+- At 0 hearts: cannot start new lessons, can practice completed lessons to earn hearts back. Practice restores 1 heart per completion but grants no XP (prevents heart farming while still letting kids play)
 - Quiet fade animation on depletion
 - Visible on home screen header
 
@@ -295,7 +294,7 @@ No backend. No auth. No external APIs. Single-player, local-first.
 ### Units
 
 1. **Addition 1** — Adding numbers 0-10 (5 lessons)
-2. **Addition 2** — Adding numbers 10-50 (5 lessons)
+2. **Addition 2** — Adding numbers 10-50 (5 lessons). Note: for the Starter band, keep sums friendly (e.g., 10+5, 12+3) — avoid jumps that feel intimidating to 6-year-olds.
 3. **Subtraction 1** — Subtracting numbers 0-10 (5 lessons)
 
 **Total: 3 units, 15 lessons, ~120 exercises**
@@ -393,9 +392,9 @@ Explicitly out of v1 scope. Ordered roughly by priority.
 - Celebration escalation (milestone animations)
 
 ### Phase 4: Platform Expansion
-- Course switcher UI
-- Courses table + activeCourseId switching
-- Chess module (or other second subject)
+- Module switcher UI
+- Modules table + activeModuleId switching
+- Chess module (or other second module)
 - Sound effects and audio
 - Achievement badges
 
