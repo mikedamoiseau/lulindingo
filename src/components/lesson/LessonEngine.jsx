@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { db } from '../../db/database';
 import useGameStore from '../../stores/useGameStore';
 import { calculateXp, getLessonBonus } from '../../utils/xpCalculator';
+import { getMaxExercises } from '../../utils/progression';
 import ProgressBar from './ProgressBar';
 import FeedbackBanner from './FeedbackBanner';
 import LessonSummary from './LessonSummary';
@@ -44,7 +45,7 @@ export default function LessonEngine() {
   const [showSummary, setShowSummary] = useState(false);
 
   const exercises = lesson?.exercises || [];
-  const maxExercises = ageBand === '6-7' ? 6 : ageBand === '8-10' ? 8 : 10;
+  const maxExercises = getMaxExercises(ageBand);
   const activeExercises = exercises.slice(0, Math.min(exercises.length, maxExercises));
   const currentExercise = activeExercises[exerciseIndex];
 

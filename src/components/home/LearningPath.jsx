@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db/database';
 import useGameStore from '../../stores/useGameStore';
+import { getUnitStates, getLessonStatus } from '../../utils/progression';
 import UnitHeader from './UnitHeader';
 import LessonNode from './LessonNode';
 import HeartDisplay from '../shared/HeartDisplay';
@@ -23,33 +24,8 @@ export default function LearningPath() {
     progressMap[p.lessonId] = p;
   });
 
-  // Build unit data with progression state
-  let foundIncomplete = false;
-  const unitData = units.map((unit) => {
-    const unitLessons = lessons
-      .filter((l) => l.unitId === unit.id)
-      .sort((a, b) => a.order - b.order);
-    const allComplete =
-      unitLessons.length > 0 && unitLessons.every((l) => progressMap[l.id]?.completed);
-    const isCurrentUnit = !allComplete && !foundIncomplete;
-    if (isCurrentUnit) foundIncomplete = true;
-    return { unit, lessons: unitLessons, allComplete, isCurrentUnit };
-  });
-
+  const unitData = getUnitStates(units, lessons, progressMap);
   const currentIndex = unitData.findIndex((u) => u.isCurrentUnit);
-
-  // Determine lesson status within current unit
-  function getLessonStatus(unitLessons, lessonIndex) {
-    const lesson = unitLessons[lessonIndex];
-    if (progressMap[lesson.id]?.completed) return 'completed';
-    // First lesson or previous is completed
-    if (lessonIndex === 0 || progressMap[unitLessons[lessonIndex - 1]?.id]?.completed) {
-      // Only the first non-completed lesson is "current"
-      const firstIncomplete = unitLessons.findIndex((l) => !progressMap[l.id]?.completed);
-      return lessonIndex === firstIncomplete ? 'current' : 'locked';
-    }
-    return 'locked';
-  }
 
   return (
     <div className={styles.container}>
@@ -92,7 +68,7 @@ export default function LearningPath() {
               <LessonNode
                 key={lesson.id}
                 lesson={lesson}
-                status={getLessonStatus(unitData[currentIndex].lessons, i)}
+                status={getLessonStatus(unitData[currentIndex].lessons, i, progressMap)}
                 stars={progressMap[lesson.id]?.stars}
               />
             ))}
