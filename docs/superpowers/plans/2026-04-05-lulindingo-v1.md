@@ -81,6 +81,7 @@ This function replaces any use of `toISOString().split('T')[0]` throughout the c
   - No progress/star updates
   - Heart +1 awarded on completion
 - Practice lessons show the same exercises as the original lesson
+- **Routing:** Practice mode is passed via React Router navigation state, not URL. `navigate('/lesson/${id}', { state: { isPractice: true } })`. LessonEngine reads `useLocation().state?.isPractice ?? false`. This keeps URLs clean and avoids a separate route.
 
 ---
 
