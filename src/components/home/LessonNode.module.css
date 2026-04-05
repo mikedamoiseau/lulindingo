@@ -1,0 +1,50 @@
+.node {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  font-weight: 900;
+}
+
+.completed {
+  background: var(--green);
+  color: white;
+  border: 3px solid var(--green-hover);
+}
+
+.current {
+  background: var(--blue);
+  color: white;
+  border: 3px solid #0e8fd4;
+  box-shadow: 0 0 20px rgba(28, 176, 246, 0.4);
+}
+
+.locked {
+  background: var(--border);
+  color: var(--text-secondary);
+  border: 3px solid var(--border);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.number {
+  font-size: var(--text-lg);
+}
+
+.stars {
+  position: absolute;
+  bottom: -8px;
+  font-size: 10px;
+  letter-spacing: -2px;
+}
+
+.pulse {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid var(--blue);
+}

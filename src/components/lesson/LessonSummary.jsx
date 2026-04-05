@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import Confetti from '../shared/Confetti';
+import Mascot from '../shared/Mascot';
 import styles from './LessonSummary.module.css';
 
 export default function LessonSummary({ xp, accuracy, streak, onFinish }) {
@@ -13,6 +14,7 @@ export default function LessonSummary({ xp, accuracy, streak, onFinish }) {
       transition={{ type: 'spring', damping: 20 }}
     >
       <Confetti active={true} />
+      <Mascot expression="celebrating" size={100} />
       <div className={styles.stars}>
         {'⭐'.repeat(stars) + '☆'.repeat(3 - stars)}
       </div>

@@ -3,7 +3,11 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import useGameStore from './stores/useGameStore';
 import { seedDatabase } from './db/seed';
 import Onboarding from './components/onboarding/Onboarding';
+import AppLayout from './components/layout/AppLayout';
+import LearningPath from './components/home/LearningPath';
+import ProgressScreen from './components/progress/ProgressScreen';
 import LessonEngine from './components/lesson/LessonEngine';
+import SettingsPanel from './components/settings/SettingsPanel';
 
 export default function App() {
   const { user, isLoaded, loadUser } = useGameStore();
@@ -32,10 +36,13 @@ export default function App() {
     <BrowserRouter>
       <div className="app-shell">
         <Routes>
-          <Route path="/" element={<div style={{ padding: '24px' }}>Welcome back, {user.name}!</div>} />
+          <Route element={<AppLayout />}>
+            <Route path="/" element={<LearningPath />} />
+            <Route path="/progress" element={<ProgressScreen />} />
+          </Route>
           <Route path="/lesson/:id" element={<LessonEngine />} />
-          <Route path="/progress" element={<div>Progress</div>} />
         </Routes>
+        <SettingsPanel />
       </div>
     </BrowserRouter>
   );
