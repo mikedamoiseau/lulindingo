@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db/database';
+import { getLocalDateString } from '../../utils/streakTracker';
 
 export default function StreakCalendar({ styles }) {
   const history = useLiveQuery(() => db.streakHistory.toArray(), []);
@@ -9,10 +10,7 @@ export default function StreakCalendar({ styles }) {
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const dateStr = `${y}-${m}-${day}`;
+    const dateStr = getLocalDateString(d);
     days.push({
       date: dateStr,
       day: d.toLocaleDateString('en', { weekday: 'short' }),
