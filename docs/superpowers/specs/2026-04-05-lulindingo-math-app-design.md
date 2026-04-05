@@ -410,9 +410,19 @@ LuLinDingo/
 On first app open, a simple 2-step onboarding:
 
 1. **Name entry** — "What's your name?" with a text input. Used for greeting on home screen.
-2. **Age band selection** — "How old are you?" with 3 large tappable cards: "6-7", "8-10", "11-12". Determines lesson length and exercise difficulty weighting.
+2. **Age band selection** — "Pick a starting level" with 3 large tappable cards labeled by difficulty feel (e.g., "Starter", "Explorer", "Challenger") with age hints in smaller text. This avoids kids picking "older" to feel big. Framed as a starting point, not a permanent identity.
 
 After onboarding, the user record is created in IndexedDB and the learning path loads.
+
+### Adaptive Difficulty
+
+The age band is a **starting level, not a locked identity**:
+
+- The app quietly tracks accuracy over the last 10 lessons
+- If accuracy is consistently >90%, lesson length and difficulty nudge up (e.g., 6-7 band starts getting 8-10 style exercises)
+- If accuracy drops below 50%, lesson length and difficulty nudge down
+- Age band can be manually changed anytime in Settings
+- No exact birth date is ever collected
 
 ## Out of Scope (Future Iterations)
 
