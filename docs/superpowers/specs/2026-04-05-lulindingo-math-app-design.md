@@ -18,19 +18,20 @@ LuLinDingo is a Duolingo-inspired gamified mathematics app targeting kids ages 6
 
 ### Screens
 
-1. **Home (Learning Path)** — Main screen. Vertical scrollable path of lesson nodes organized by unit. Completed nodes are filled green, current node pulses/glows, locked nodes are grayed out. Units grouped with headers (e.g., "Addition", "Subtraction").
+1. **Home (Learning Path)** — Main screen. Shows only the **current unit** and the next few upcoming lessons — not the entire course trail. Future units are collapsed into a preview row ("Up next: Subtraction"). Completed units collapse into a summary badge. This keeps the view clean and progression obvious at a glance, especially for younger kids.
 
-2. **Lesson Screen** — Full-screen exercise flow (no tab bar). Progress bar at top. Exercises shown one at a time. Immediate feedback on each answer. After 10-12 exercises, a summary screen shows XP earned, accuracy, and streak status.
+2. **Lesson Screen** — Full-screen focused mode (no tab bar, no navigation distractions). Progress bar at top. Exercises shown one at a time. Immediate feedback on each answer. Lesson length adapts by age band (see Lesson Flow section). Summary screen at completion shows XP earned, accuracy, and streak status.
 
-3. **Profile/Stats** — XP total, current streak with calendar view, hearts remaining, completed units count, local leaderboard (pre-seeded fake entries).
+3. **Progress / Rewards** — Lightweight screen showing: current streak (with fire icon + calendar), total XP, hearts remaining, daily goal ring, and a list of completed units with star ratings. Focused on celebrating achievement rather than heavy statistics.
 
-4. **Settings** — Sound on/off, reset progress, daily goal selector (10/20/30/50 XP).
+4. **Settings** — Sound on/off, reset progress, daily goal selector, age band selector. Accessed via a gear icon on the home screen header — not a dedicated tab.
 
 ### Navigation
 
-- Bottom tab bar with 3 tabs: Learn, Profile, Settings
-- Lesson screen is a full-screen overlay (tab bar hidden during exercises)
-- React Router v6 handles routing: `/`, `/lesson/:id`, `/profile`, `/settings`
+- Bottom tab bar with **2 tabs**: Learn, Progress
+- Gear icon in home screen header opens Settings as a slide-over panel
+- Lesson screen is a full-screen focused mode (tab bar hidden during exercises)
+- React Router v6 handles routing: `/`, `/lesson/:id`, `/progress`, `/settings`
 
 ## Exercise Types
 
@@ -74,7 +75,19 @@ Five distinct exercise components, each a React component:
 
 ## Lesson Flow
 
-Each lesson consists of 10-12 exercises (mixed types from the above 5). A `LessonEngine` component manages:
+### Age-Adaptive Lesson Length
+
+Lesson length adapts based on the user's selected age band (set during onboarding or in Settings):
+
+- **Ages 6-7:** 5-8 exercises per lesson. Simpler exercise types weighted more heavily (SelectTheAnswer, FollowThePattern). Shorter number ranges.
+- **Ages 8-10:** 8-10 exercises per lesson. Full mix of exercise types. Medium difficulty.
+- **Ages 11-12:** 10-12 exercises per lesson. More TypeTheAnswer and HelpCharacter. Larger number ranges.
+
+The age band is stored in the user record and determines which exercise set is loaded for each lesson.
+
+### Lesson Engine
+
+A `LessonEngine` component manages:
 
 1. Exercise queue and current exercise index
 2. Progress bar (fills incrementally per correct answer)
@@ -82,13 +95,20 @@ Each lesson consists of 10-12 exercises (mixed types from the above 5). A `Lesso
 4. Combo counter tracking consecutive correct answers
 5. XP accumulation during the lesson
 6. Transition animations between exercises
-7. Feedback banners (green/correct with encouragement text, red/wrong with correct answer shown)
+7. Feedback banners (see below)
 8. Summary screen at completion
 
 ### Feedback Flow
 
 - **Correct answer:** Green banner slides up from bottom with checkmark icon and random encouragement ("Amazing!", "Great job!", "Perfect!", "You're on fire!"). Green CONTINUE button appears. Combo counter increments. XP flies up as animated number.
-- **Wrong answer:** Red banner slides up showing the correct answer. Heart breaks with animation. Combo counter resets. Red CONTINUE button appears.
+- **Wrong answer:** Gentle correction approach designed to teach, not punish:
+  1. Soft orange/red banner shows the correct answer with a brief explanation (e.g., "The answer is 8. 6 + 2 = 8")
+  2. Mascot shows "thinking" expression (not sad — avoids shame for young kids)
+  3. Heart depletes with a quiet animation (not dramatic break)
+  4. For select-answer and follow-pattern types: the wrong option is dimmed and the correct one highlights, giving the child a moment to see the right answer
+  5. Combo counter resets
+  6. CONTINUE button appears
+- **Retry mechanic:** For TypeTheAnswer and AnswerOnTheLine exercises, on first wrong attempt the child gets one retry ("Try again!") before the heart is deducted and the correct answer is shown. This gives younger kids a second chance without removing all stakes.
 - **Lesson complete:** Confetti animation, XP total with breakdown, accuracy percentage, streak status, star rating (1-3 based on accuracy).
 
 ## Data Model (Dexie.js / IndexedDB)
@@ -108,6 +128,7 @@ users {
   dailyGoal: number (10 | 20 | 30 | 50)
   dailyXpEarned: number
   dailyXpDate: string (YYYY-MM-DD)
+  ageBand: "6-7" | "8-10" | "11-12"
   soundEnabled: boolean
   createdAt: Date
 }
@@ -143,13 +164,6 @@ streakHistory {
   xpEarned: number
 }
 
-leaderboard {
-  id: number (auto-increment)
-  name: string
-  xp: number
-  isPlayer: boolean
-  avatarColor: string
-}
 ```
 
 ### Exercise Schema (stored in lessons.exercises JSON)
@@ -183,7 +197,7 @@ src/data/
   leaderboard.js    → 20 pre-seeded fake leaderboard entries
 ```
 
-On first app load, Dexie populates IndexedDB from these seed files. User progress is stored separately and persists across sessions.
+On first app load (after onboarding), Dexie populates IndexedDB from these seed files. User progress is stored separately and persists across sessions.
 
 ## Gamification System
 
@@ -197,12 +211,14 @@ On first app load, Dexie populates IndexedDB from these seed files. User progres
 
 ### Hearts / Lives
 
+Hearts create gentle tension and stakes without being punitive to young children:
+
 - Maximum 5 hearts
-- Lose 1 heart per wrong answer during a lesson
-- Hearts refill 1 every 30 minutes (calculated from `heartsLastRefill` timestamp)
-- At 0 hearts: cannot start new lessons, must wait for refill or practice completed lessons
-- Practice mode (replaying completed lessons) does not cost hearts
-- Heart break animation on wrong answer
+- Lose 1 heart per wrong answer (after retry chance on applicable exercise types — see Feedback Flow)
+- Hearts refill 1 every 20 minutes (calculated from `heartsLastRefill` timestamp) — faster than Duolingo to avoid frustrating young kids
+- At 0 hearts: cannot start new lessons, but can practice completed lessons to earn hearts back (1 heart per completed practice)
+- Heart depletion shown as a quiet fade animation (not a dramatic break)
+- Heart count visible on home screen header
 
 ### Streaks
 
@@ -226,12 +242,6 @@ On first app load, Dexie populates IndexedDB from these seed files. User progres
 - Resets to 0 on wrong answer
 - Visual escalation: x3 = small badge, x6 = medium + glow, x10+ = large + particle effect
 
-### Local Leaderboard
-
-- 20 pre-seeded fake entries with names and XP values
-- Player's entry mixed in, sorted by XP
-- Fake entries have slowly increasing XP (calculated from days since install) to simulate competition
-- Shows rank, name, XP, and avatar color circle
 
 ## Mascot & Visual Design
 
@@ -320,7 +330,7 @@ No backend. No authentication. No external API calls. Single-player, local-first
 
 **Total: 10 units, 50 lessons, ~550 exercises**
 
-Each lesson contains 10-12 exercises drawn from the 5 exercise types, weighted toward the unit's topic but mixing in review from earlier units.
+Each lesson contains exercises drawn from the 5 exercise types (count varies by age band — see Lesson Flow), weighted toward the unit's topic but mixing in review from earlier units.
 
 ## File Structure
 
@@ -359,12 +369,12 @@ LuLinDingo/
           HelpCharacter.jsx     → Word problem with mascot
           NumberPad.jsx         → Shared number pad component
           NumberLine.jsx        → Shared number line component
-      profile/
-        ProfileScreen.jsx       → Stats overview
+      progress/
+        ProgressScreen.jsx      → Rewards & progress overview
         StreakCalendar.jsx      → Calendar streak visualization
-        Leaderboard.jsx         → Fake leaderboard
+        UnitBadges.jsx          → Completed units with star ratings
       settings/
-        SettingsScreen.jsx      → Settings controls
+        SettingsPanel.jsx       → Slide-over settings panel (gear icon)
       shared/
         Mascot.jsx              → Dingo SVG with expressions
         Confetti.jsx            → Celebration particle effect
@@ -388,13 +398,21 @@ LuLinDingo/
         division-2.js
         geometry-1.js
         geometry-2.js
-      leaderboard.js            → Pre-seeded fake entries
     utils/
       xpCalculator.js           → XP + combo multiplier logic
       heartManager.js           → Heart refill timer logic
       streakTracker.js          → Streak calculation logic
       exerciseGenerator.js      → Random distractor generation
 ```
+
+## Onboarding (First Launch)
+
+On first app open, a simple 2-step onboarding:
+
+1. **Name entry** — "What's your name?" with a text input. Used for greeting on home screen.
+2. **Age band selection** — "How old are you?" with 3 large tappable cards: "6-7", "8-10", "11-12". Determines lesson length and exercise difficulty weighting.
+
+After onboarding, the user record is created in IndexedDB and the learning path loads.
 
 ## Out of Scope (Future Iterations)
 
@@ -404,7 +422,7 @@ LuLinDingo/
 - Multiple user profiles
 - Placement test
 - Intermediate math content (fractions, algebra, statistics)
-- Practice mode / review system
 - Achievement badges
 - Streak freeze items
 - Gem/coin economy
+- Leaderboard (removed from v1 — fake social proof is inappropriate for young kids)
