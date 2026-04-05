@@ -1,4 +1,4 @@
-# LuLinDingo - Gamified Math App for Kids
+# LuLinDingo - Gamified Learning Platform for Kids
 
 **Date:** 2026-04-05
 **Status:** Design
@@ -6,7 +6,19 @@
 
 ## Overview
 
-LuLinDingo is a Duolingo-inspired gamified mathematics app targeting kids ages 6-12. It covers elementary math (four operations + basic geometry) through bite-sized lessons with 5 interactive exercise types, a linear progression path, and full gamification (XP, streaks, hearts, combos, leaderboards). The app is entirely client-side with no backend — all data persists in IndexedDB via Dexie.js.
+LuLinDingo is a Duolingo-inspired gamified learning platform targeting kids ages 6-12. The platform supports multiple subjects (courses) — **Mathematics is the first course**, with others planned (e.g., Chess). The app shell (navigation, gamification, XP, streaks, hearts) is subject-agnostic. Each course provides its own units, lessons, and exercise types.
+
+The v1 release ships with the Math course covering elementary math (four operations + basic geometry) through bite-sized lessons with 5 interactive exercise types, a linear progression path, and full gamification. The app is entirely client-side with no backend — all data persists in IndexedDB via Dexie.js.
+
+## Multi-Course Architecture
+
+The app is structured so that the **platform layer** and **course layer** are separate:
+
+- **Platform layer** (shared): App shell, navigation, onboarding, gamification (XP, hearts, streaks, combos, daily goal), progress tracking, settings. These work identically regardless of which course the user is in.
+- **Course layer** (per-subject): Units, lessons, exercise types, exercise data, and any course-specific UI components. Each course registers its own exercise type components and data.
+- **Course switcher**: The home screen header will include a course icon/flag (like Duolingo's flag icon). In v1 with only Math, this shows the Math icon. When more courses are added, tapping it opens a course picker. XP and streaks are unified across all courses.
+
+This means the data model uses a `courseId` field on units and lessons, and the store tracks which course is active.
 
 ## Target Audience
 
@@ -129,12 +141,22 @@ users {
   dailyXpEarned: number
   dailyXpDate: string (YYYY-MM-DD)
   ageBand: "6-7" | "8-10" | "11-12"
+  activeCourseId: string (default: "math")
   soundEnabled: boolean
   createdAt: Date
 }
 
+courses {
+  id: string (e.g., "math")
+  title: string (e.g., "Mathematics")
+  iconEmoji: string (e.g., "🔢")
+  description: string
+  order: number
+}
+
 units {
-  id: string (e.g., "addition-1")
+  id: string (e.g., "math-addition-1")
+  courseId: string (indexed, references courses.id)
   title: string
   topic: string (addition | subtraction | multiplication | division | geometry)
   order: number
@@ -386,18 +408,20 @@ LuLinDingo/
       database.js               → Dexie.js schema + initialization
       seed.js                   → First-load data seeding logic
     data/
-      units.js                  → Unit definitions
-      lessons/
-        addition-1.js
-        addition-2.js
-        subtraction-1.js
-        subtraction-2.js
-        multiplication-1.js
-        multiplication-2.js
-        division-1.js
-        division-2.js
-        geometry-1.js
-        geometry-2.js
+      courses.js                → Course definitions (math, future: chess, etc.)
+      math/                     → Math course data
+        units.js                → Unit definitions for math
+        lessons/
+          addition-1.js
+          addition-2.js
+          subtraction-1.js
+          subtraction-2.js
+          multiplication-1.js
+          multiplication-2.js
+          division-1.js
+          division-2.js
+          geometry-1.js
+          geometry-2.js
     utils/
       xpCalculator.js           → XP + combo multiplier logic
       heartManager.js           → Heart refill timer logic
@@ -436,3 +460,5 @@ The age band is a **starting level, not a locked identity**:
 - Streak freeze items
 - Gem/coin economy
 - Leaderboard (removed from v1 — fake social proof is inappropriate for young kids)
+- Additional courses (Chess, etc.) — architecture supports it, content comes later
+- Course switcher UI (only 1 course in v1, switcher added when second course ships)

@@ -236,7 +236,8 @@ export const db = new Dexie('LuLinDingo');
 
 db.version(1).stores({
   users: '++id, name',
-  units: 'id, topic, order',
+  courses: 'id, order',
+  units: 'id, courseId, topic, order',
   lessons: 'id, unitId, order',
   progress: 'lessonId, completed',
   streakHistory: 'date',
@@ -250,14 +251,19 @@ db.version(1).stores({
 import { db } from './database';
 
 export async function seedDatabase() {
-  const unitCount = await db.units.count();
-  if (unitCount > 0) return; // Already seeded
+  const courseCount = await db.courses.count();
+  if (courseCount > 0) return; // Already seeded
 
-  const { default: units } = await import('../data/units.js');
-  await db.units.bulkAdd(units);
+  // Seed courses
+  const { default: courses } = await import('../data/courses.js');
+  await db.courses.bulkAdd(courses);
 
-  // Dynamically import all lesson files
-  const lessonModules = import.meta.glob('../data/lessons/*.js');
+  // Seed math course units
+  const { default: mathUnits } = await import('../data/math/units.js');
+  await db.units.bulkAdd(mathUnits);
+
+  // Dynamically import all math lesson files
+  const lessonModules = import.meta.glob('../data/math/lessons/*.js');
   for (const path in lessonModules) {
     const mod = await lessonModules[path]();
     await db.lessons.bulkAdd(mod.default);
@@ -268,10 +274,26 @@ export async function seedDatabase() {
 - [ ] **Step 3: Create stub data files so imports don't fail**
 
 ```js
-// src/data/units.js
+// src/data/courses.js
+const courses = [
+  {
+    id: 'math',
+    title: 'Mathematics',
+    iconEmoji: '🔢',
+    description: 'Addition, subtraction, multiplication, division & geometry',
+    order: 1,
+  },
+];
+
+export default courses;
+```
+
+```js
+// src/data/math/units.js
 const units = [
   {
-    id: 'addition-1',
+    id: 'math-addition-1',
+    courseId: 'math',
     title: 'Addition 1',
     topic: 'addition',
     order: 1,
@@ -284,11 +306,11 @@ export default units;
 ```
 
 ```js
-// src/data/lessons/addition-1.js
+// src/data/math/lessons/addition-1.js
 const lessons = [
   {
-    id: 'addition-1-lesson-1',
-    unitId: 'addition-1',
+    id: 'math-addition-1-lesson-1',
+    unitId: 'math-addition-1',
     order: 1,
     exercises: [
       {
@@ -439,6 +461,7 @@ const useGameStore = create((set, get) => ({
       dailyXpEarned: 0,
       dailyXpDate: getTodayString(),
       ageBand,
+      activeCourseId: 'math',
       soundEnabled: true,
       createdAt: new Date(),
     });
@@ -1941,7 +1964,7 @@ export default function App() {
 npm run dev
 ```
 
-Navigate to `http://localhost:5173/lesson/addition-1-lesson-1`. You should see:
+Navigate to `http://localhost:5173/lesson/math-addition-1-lesson-1`. You should see:
 1. Progress bar at top with close (X) button
 2. First exercise (SelectTheAnswer or TypeTheAnswer)
 3. Answer correctly — green feedback banner, XP fly-up, combo counter
@@ -2703,14 +2726,14 @@ case 'help-character': return <HelpCharacter {...props} />;
 
 - [ ] **Step 5: Test all 5 exercise types**
 
-Add test exercises to `src/data/lessons/addition-1.js` covering all types:
+Add test exercises to `src/data/math/lessons/addition-1.js` covering all types:
 
 ```js
-// src/data/lessons/addition-1.js
+// src/data/math/lessons/addition-1.js
 const lessons = [
   {
-    id: 'addition-1-lesson-1',
-    unitId: 'addition-1',
+    id: 'math-addition-1-lesson-1',
+    unitId: 'math-addition-1',
     order: 1,
     exercises: [
       {
@@ -2767,7 +2790,7 @@ const lessons = [
 export default lessons;
 ```
 
-Navigate to `http://localhost:5173/lesson/addition-1-lesson-1` and play through all exercise types.
+Navigate to `http://localhost:5173/lesson/math-addition-1-lesson-1` and play through all exercise types.
 
 - [ ] **Step 6: Commit**
 
@@ -3083,7 +3106,8 @@ import styles from './LearningPath.module.css';
 
 export default function LearningPath() {
   const user = useGameStore((s) => s.user);
-  const units = useLiveQuery(() => db.units.orderBy('order').toArray(), []);
+  const courseId = user?.activeCourseId || 'math';
+  const units = useLiveQuery(() => db.units.where('courseId').equals(courseId).sortBy('order'), [courseId]);
   const lessons = useLiveQuery(() => db.lessons.orderBy('order').toArray(), []);
   const progress = useLiveQuery(() => db.progress.toArray(), []);
 
@@ -3968,26 +3992,26 @@ git commit -m "feat: add confetti celebration on lesson completion"
 ## Task 17-21: Content — All 10 Units of Exercise Data
 
 **Files:**
-- Modify: `src/data/units.js`
-- Create: `src/data/lessons/addition-2.js`, `src/data/lessons/subtraction-1.js`, `src/data/lessons/subtraction-2.js`, `src/data/lessons/multiplication-1.js`, `src/data/lessons/multiplication-2.js`, `src/data/lessons/division-1.js`, `src/data/lessons/division-2.js`, `src/data/lessons/geometry-1.js`, `src/data/lessons/geometry-2.js`
+- Modify: `src/data/math/units.js`
+- Create: `src/data/math/lessons/addition-2.js`, `src/data/math/lessons/subtraction-1.js`, `src/data/math/lessons/subtraction-2.js`, `src/data/math/lessons/multiplication-1.js`, `src/data/math/lessons/multiplication-2.js`, `src/data/math/lessons/division-1.js`, `src/data/math/lessons/division-2.js`, `src/data/math/lessons/geometry-1.js`, `src/data/math/lessons/geometry-2.js`
 
 These tasks are repetitive content creation. Each follows the same pattern:
 
 - [ ] **Step 1: Update units.js with all 10 units**
 
 ```js
-// src/data/units.js
+// src/data/math/units.js
 const units = [
-  { id: 'addition-1', title: 'Addition 1', topic: 'addition', order: 1, iconEmoji: '➕', description: 'Adding numbers 0-10' },
-  { id: 'addition-2', title: 'Addition 2', topic: 'addition', order: 2, iconEmoji: '➕', description: 'Adding numbers 10-50' },
-  { id: 'subtraction-1', title: 'Subtraction 1', topic: 'subtraction', order: 3, iconEmoji: '➖', description: 'Subtracting numbers 0-10' },
-  { id: 'subtraction-2', title: 'Subtraction 2', topic: 'subtraction', order: 4, iconEmoji: '➖', description: 'Subtracting numbers 10-50' },
-  { id: 'multiplication-1', title: 'Multiplication 1', topic: 'multiplication', order: 5, iconEmoji: '✖️', description: 'Times tables 1-5' },
-  { id: 'multiplication-2', title: 'Multiplication 2', topic: 'multiplication', order: 6, iconEmoji: '✖️', description: 'Times tables 6-10' },
-  { id: 'division-1', title: 'Division 1', topic: 'division', order: 7, iconEmoji: '➗', description: 'Basic division' },
-  { id: 'division-2', title: 'Division 2', topic: 'division', order: 8, iconEmoji: '➗', description: 'Division with remainders' },
-  { id: 'geometry-1', title: 'Geometry 1', topic: 'geometry', order: 9, iconEmoji: '📐', description: 'Shapes and properties' },
-  { id: 'geometry-2', title: 'Geometry 2', topic: 'geometry', order: 10, iconEmoji: '📐', description: 'Area and perimeter' },
+  { id: 'math-addition-1', courseId: 'math', title: 'Addition 1', topic: 'addition', order: 1, iconEmoji: '➕', description: 'Adding numbers 0-10' },
+  { id: 'math-addition-2', courseId: 'math', title: 'Addition 2', topic: 'addition', order: 2, iconEmoji: '➕', description: 'Adding numbers 10-50' },
+  { id: 'math-subtraction-1', courseId: 'math', title: 'Subtraction 1', topic: 'subtraction', order: 3, iconEmoji: '➖', description: 'Subtracting numbers 0-10' },
+  { id: 'math-subtraction-2', courseId: 'math', title: 'Subtraction 2', topic: 'subtraction', order: 4, iconEmoji: '➖', description: 'Subtracting numbers 10-50' },
+  { id: 'math-multiplication-1', courseId: 'math', title: 'Multiplication 1', topic: 'multiplication', order: 5, iconEmoji: '✖️', description: 'Times tables 1-5' },
+  { id: 'math-multiplication-2', courseId: 'math', title: 'Multiplication 2', topic: 'multiplication', order: 6, iconEmoji: '✖️', description: 'Times tables 6-10' },
+  { id: 'math-division-1', courseId: 'math', title: 'Division 1', topic: 'division', order: 7, iconEmoji: '➗', description: 'Basic division' },
+  { id: 'math-division-2', courseId: 'math', title: 'Division 2', topic: 'division', order: 8, iconEmoji: '➗', description: 'Division with remainders' },
+  { id: 'math-geometry-1', courseId: 'math', title: 'Geometry 1', topic: 'geometry', order: 9, iconEmoji: '📐', description: 'Shapes and properties' },
+  { id: 'math-geometry-2', courseId: 'math', title: 'Geometry 2', topic: 'geometry', order: 10, iconEmoji: '📐', description: 'Area and perimeter' },
 ];
 
 export default units;
@@ -3998,11 +4022,11 @@ export default units;
 Each file follows this pattern (showing `addition-2.js` as example — all others follow the same structure with topic-appropriate exercises). Each unit has 5 lessons, each with 12 exercises covering all 5 types:
 
 ```js
-// src/data/lessons/addition-2.js
+// src/data/math/lessons/addition-2.js
 const lessons = [
   {
-    id: 'addition-2-lesson-1',
-    unitId: 'addition-2',
+    id: 'math-addition-2-lesson-1',
+    unitId: 'math-addition-2',
     order: 1,
     exercises: [
       { type: 'select-answer', equation: '12 + 5 = []', correctAnswer: 17, options: [15, 17, 19] },
@@ -4043,7 +4067,7 @@ export default lessons;
 
 - [ ] **Step 3: Update addition-1.js with full 5 lessons**
 
-Expand the existing `src/data/lessons/addition-1.js` from 1 lesson to 5 lessons, each with 12 exercises.
+Expand the existing `src/data/math/lessons/addition-1.js` from 1 lesson to 5 lessons, each with 12 exercises.
 
 - [ ] **Step 4: Verify all data loads**
 
