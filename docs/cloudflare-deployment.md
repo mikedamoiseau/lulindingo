@@ -204,7 +204,7 @@ Store the token securely. Never commit it to the repo.
 
 | Item | Value |
 |------|-------|
-| Project name | `lulin-bakery` |
-| Default URL | `lulin-bakery.pages.dev` |
-| Custom domain | `lulin.damoiseau.xyz` |
+| Project name | `lulindingo` |
+| Default URL | `lulindingo.pages.dev` |
+| Custom domain | `lulindingo.damoiseau.xyz` |
 | DNS zone | `damoiseau.xyz` (Cloudflare-managed) |

@@ -12,6 +12,9 @@ export default function NumberPad({ onDigit, onDelete }) {
         <button className={styles.key} onClick={() => onDigit('0')}>
           0
         </button>
+        <button className={styles.key} onClick={() => onDigit('.')}>
+          .
+        </button>
         <button className={`${styles.key} ${styles.deleteKey}`} onClick={onDelete}>
           <svg
             width="24"
