@@ -12,52 +12,43 @@ beforeEach(async () => {
 });
 
 describe('seedDatabase', () => {
-  it('seeds units from data files', async () => {
+  it('seeds 4 units', async () => {
     await seedDatabase();
     const units = await db.units.toArray();
-    expect(units.length).toBeGreaterThan(0);
-    expect(units[0].moduleId).toBe('math');
-  });
-
-  it('seeds lessons from data files', async () => {
-    await seedDatabase();
-    const lessons = await db.lessons.toArray();
-    expect(lessons.length).toBeGreaterThan(0);
-    expect(lessons[0].exercises).toBeDefined();
-    expect(Array.isArray(lessons[0].exercises)).toBe(true);
-  });
-
-  it('is idempotent — calling twice does not duplicate', async () => {
-    await seedDatabase();
-    const firstCount = await db.units.count();
-    await seedDatabase();
-    const secondCount = await db.units.count();
-    expect(firstCount).toBe(secondCount);
-  });
-
-  it('seeds all 5 units', async () => {
-    await seedDatabase();
-    const units = await db.units.toArray();
-    expect(units).toHaveLength(5);
+    expect(units).toHaveLength(4);
     const titles = units.map((u) => u.title);
-    expect(titles).toContain('Addition 1');
-    expect(titles).toContain('Addition 2');
-    expect(titles).toContain('Addition 3');
-    expect(titles).toContain('Subtraction 1');
-    expect(titles).toContain('Subtraction 2');
+    expect(titles).toContain('Addition');
+    expect(titles).toContain('Subtraction');
+    expect(titles).toContain('Multiplication');
+    expect(titles).toContain('Division');
   });
 
-  it('seeds 25 lessons total', async () => {
+  it('seeds 20 lessons (5 per unit)', async () => {
     await seedDatabase();
     const lessons = await db.lessons.toArray();
-    expect(lessons).toHaveLength(25);
+    expect(lessons).toHaveLength(20);
   });
 
-  it('every lesson has at least 10 exercises', async () => {
+  it('each lesson has tier, operation, and no exercises', async () => {
     await seedDatabase();
     const lessons = await db.lessons.toArray();
     for (const lesson of lessons) {
-      expect(lesson.exercises.length).toBeGreaterThanOrEqual(10);
+      expect(lesson.tier).toBeGreaterThanOrEqual(1);
+      expect(lesson.tier).toBeLessThanOrEqual(5);
+      expect(lesson.operation).toBeDefined();
+      expect(lesson.exercises).toBeUndefined();
+    }
+  });
+
+  it('each unit has exactly 5 lessons with tiers 1-5', async () => {
+    await seedDatabase();
+    const units = await db.units.toArray();
+    const lessons = await db.lessons.toArray();
+    for (const unit of units) {
+      const unitLessons = lessons.filter((l) => l.unitId === unit.id);
+      expect(unitLessons).toHaveLength(5);
+      const tiers = unitLessons.map((l) => l.tier).sort();
+      expect(tiers).toEqual([1, 2, 3, 4, 5]);
     }
   });
 
@@ -69,5 +60,13 @@ describe('seedDatabase', () => {
     for (const lesson of lessons) {
       expect(unitIds.has(lesson.unitId)).toBe(true);
     }
+  });
+
+  it('is idempotent', async () => {
+    await seedDatabase();
+    const firstCount = await db.units.count();
+    await seedDatabase();
+    const secondCount = await db.units.count();
+    expect(firstCount).toBe(secondCount);
   });
 });
