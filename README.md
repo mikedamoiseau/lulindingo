@@ -1,23 +1,38 @@
 # LuLin Dingo
 
-LuLin Dingo is a kid-friendly math learning app focused on short, engaging lessons for children ages 6 to 12.
+A kid-friendly math learning app with short, engaging lessons for children ages 6 to 12. Built with React, Vite, Zustand, and Dexie (IndexedDB).
 
-## Initial product direction
+## Features
 
-- Math-only first release
-- Age-band based difficulty
-- Short lesson sessions
-- Clear progression path
-- Gentle, encouraging feedback
-- Offline-friendly local progress
+- **3 Units** — Addition 1, Addition 2, Subtraction 1 (15 lessons total)
+- **3 Exercise Types** — Type the answer, select the answer, follow the pattern
+- **Gamification** — Hearts (5 max, refill over time), XP, streaks, star ratings
+- **Age-adaptive difficulty** — Exercise count scales by age band (6-7, 8-10, 11-12)
+- **Linear progression** — Lessons unlock sequentially within units
+- **Practice mode** — Replay completed lessons to earn hearts without XP cost
+- **Onboarding** — Name and age band selection
+- **Offline-first** — All progress stored locally via IndexedDB
+- **Settings** — Age band adjustment, data reset
 
-## Early scope
+## Getting started
 
-- Learning path home screen
-- Lesson flow with adaptive length by age band
-- Progress and rewards screen
-- Settings behind a gear icon
+```bash
+npm install
+npm run dev
+```
 
-## Status
+## Testing
 
-Repository created. Implementation planning and scaffolding come next.
+```bash
+npm test
+```
+
+89 tests covering progression logic, store actions, database seeding, heart management, streak tracking, and XP calculation.
+
+## Tech stack
+
+- **React** + **Vite** — UI and build
+- **Zustand** — State management
+- **Dexie** — IndexedDB wrapper for offline persistence
+- **Framer Motion** — Animations
+- **Vitest** + **fake-indexeddb** — Testing
