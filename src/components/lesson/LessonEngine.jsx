@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -6,6 +6,7 @@ import { db } from '../../db/database';
 import useGameStore from '../../stores/useGameStore';
 import { calculateXp, getLessonBonus } from '../../utils/xpCalculator';
 import { getMaxExercises } from '../../utils/progression';
+import { shuffleArray } from '../../utils/shuffle';
 import ProgressBar from './ProgressBar';
 import FeedbackBanner from './FeedbackBanner';
 import LessonSummary from './LessonSummary';
@@ -46,7 +47,12 @@ export default function LessonEngine() {
 
   const exercises = lesson?.exercises || [];
   const maxExercises = getMaxExercises(ageBand);
-  const activeExercises = exercises.slice(0, Math.min(exercises.length, maxExercises));
+  const activeExercises = useMemo(
+    () => shuffleArray(exercises).slice(0, Math.min(exercises.length, maxExercises)),
+    // Re-shuffle only when the lesson changes, not on every re-render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lesson?.id]
+  );
   const currentExercise = activeExercises[exerciseIndex];
 
   const handleAnswer = useCallback(
