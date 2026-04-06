@@ -26,6 +26,24 @@ const units = [
     iconEmoji: '➖',
     description: 'Subtracting numbers 0-10',
   },
+  {
+    id: 'math-addition-3',
+    moduleId: 'math',
+    title: 'Addition 3',
+    topic: 'addition',
+    order: 4,
+    iconEmoji: '➕',
+    description: 'Adding numbers 50-100',
+  },
+  {
+    id: 'math-subtraction-2',
+    moduleId: 'math',
+    title: 'Subtraction 2',
+    topic: 'subtraction',
+    order: 5,
+    iconEmoji: '➖',
+    description: 'Subtracting numbers 10-50',
+  },
 ];
 
 export default units;
