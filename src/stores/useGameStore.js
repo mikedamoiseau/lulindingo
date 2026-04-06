@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { db } from '../db/database';
 import { calculateCurrentHearts } from '../utils/heartManager';
 import { getLocalDateString, calculateStreak } from '../utils/streakTracker';
-import { getSkippedLessonIds } from '../utils/skipUnits';
+import { getSkippedLessonIds, getPlacementSkippedLessonIds, getFirstActiveUnitId } from '../utils/skipUnits';
 
 const useGameStore = create((set, get) => ({
   user: null,
@@ -29,7 +29,8 @@ const useGameStore = create((set, get) => ({
     }
   },
 
-  createUser: async (name, ageBand) => {
+  createUser: async (name, ageBand, options = {}) => {
+    const { startingTier = 1, placementMethod = 'manual' } = options;
     const id = await db.users.add({
       name,
       totalXp: 0,
@@ -39,15 +40,28 @@ const useGameStore = create((set, get) => ({
       longestStreak: 0,
       lastActiveDate: null,
       ageBand,
+      startingTier,
+      placementMethod,
       createdAt: new Date(),
     });
     const user = await db.users.get(id);
 
     const allLessons = await db.lessons.toArray();
-    const skippedIds = getSkippedLessonIds(ageBand, allLessons);
-    if (skippedIds.length > 0) {
+    const unitSkippedIds = getSkippedLessonIds(ageBand, allLessons);
+    const allSkippedIds = [...unitSkippedIds];
+
+    if (startingTier > 1) {
+      const units = await db.units.where('moduleId').equals('math').sortBy('order');
+      const firstActiveId = getFirstActiveUnitId(units, unitSkippedIds);
+      if (firstActiveId) {
+        const placementSkipped = getPlacementSkippedLessonIds(startingTier, firstActiveId, allLessons);
+        allSkippedIds.push(...placementSkipped);
+      }
+    }
+
+    if (allSkippedIds.length > 0) {
       await db.progress.bulkPut(
-        skippedIds.map((lessonId) => ({
+        allSkippedIds.map((lessonId) => ({
           lessonId,
           completed: true,
           stars: 3,
