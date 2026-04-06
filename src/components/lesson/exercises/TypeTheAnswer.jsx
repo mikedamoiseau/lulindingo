@@ -6,7 +6,8 @@ export default function TypeTheAnswer({ exercise, onAnswer }) {
   const [value, setValue] = useState('');
 
   const handleDigit = (d) => {
-    if (value.length < 4) setValue(value + d);
+    if (d === '.' && value.includes('.')) return;
+    if (value.length < 10) setValue(value + d);
   };
 
   const handleDelete = () => {
@@ -14,7 +15,7 @@ export default function TypeTheAnswer({ exercise, onAnswer }) {
   };
 
   const handleCheck = () => {
-    if (value !== '') onAnswer(parseInt(value, 10));
+    if (value !== '') onAnswer(parseFloat(value));
   };
 
   const parts = exercise.equation.split('[]');
