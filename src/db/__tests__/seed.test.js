@@ -35,20 +35,22 @@ describe('seedDatabase', () => {
     expect(firstCount).toBe(secondCount);
   });
 
-  it('seeds all 3 units', async () => {
+  it('seeds all 5 units', async () => {
     await seedDatabase();
     const units = await db.units.toArray();
-    expect(units).toHaveLength(3);
+    expect(units).toHaveLength(5);
     const titles = units.map((u) => u.title);
     expect(titles).toContain('Addition 1');
     expect(titles).toContain('Addition 2');
+    expect(titles).toContain('Addition 3');
     expect(titles).toContain('Subtraction 1');
+    expect(titles).toContain('Subtraction 2');
   });
 
-  it('seeds 15 lessons total', async () => {
+  it('seeds 25 lessons total', async () => {
     await seedDatabase();
     const lessons = await db.lessons.toArray();
-    expect(lessons).toHaveLength(15);
+    expect(lessons).toHaveLength(25);
   });
 
   it('every lesson has at least 10 exercises', async () => {
