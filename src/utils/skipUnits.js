@@ -1,7 +1,7 @@
 const SKIP_UNITS_BY_BAND = {
   '6-7': [],
   '8-10': ['math-addition-1'],
-  '11-12': ['math-addition-1', 'math-addition-2'],
+  '11-12': ['math-addition-1', 'math-addition-2', 'math-subtraction-1'],
 };
 
 /**

@@ -30,11 +30,12 @@ describe('getSkippedLessonIds', () => {
     expect(skipped.every((id) => id.startsWith('math-addition-1'))).toBe(true);
   });
 
-  it('returns Addition 1 + Addition 2 lessons for Challenger (11-12)', () => {
+  it('returns Addition 1 + Addition 2 + Subtraction 1 lessons for Challenger (11-12)', () => {
     const skipped = getSkippedLessonIds('11-12', allLessons);
-    expect(skipped).toHaveLength(10);
+    expect(skipped).toHaveLength(15);
     expect(skipped.filter((id) => id.startsWith('math-addition-1'))).toHaveLength(5);
     expect(skipped.filter((id) => id.startsWith('math-addition-2'))).toHaveLength(5);
+    expect(skipped.filter((id) => id.startsWith('math-subtraction-1'))).toHaveLength(5);
   });
 
   it('returns empty array for unknown ageBand', () => {

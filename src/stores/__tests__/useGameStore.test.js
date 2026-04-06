@@ -425,14 +425,16 @@ describe('createUser skip logic', () => {
     expect(progress.every((p) => p.completed === true)).toBe(true);
   });
 
-  it('Challenger (11-12) skips Addition 1 and Addition 2', async () => {
+  it('Challenger (11-12) skips Addition 1, Addition 2, and Subtraction 1', async () => {
     await getStore().createUser('Challenger', '11-12');
     const progress = await db.progress.toArray();
-    expect(progress).toHaveLength(10);
+    expect(progress).toHaveLength(15);
     const add1 = progress.filter((p) => p.lessonId.startsWith('math-addition-1'));
     const add2 = progress.filter((p) => p.lessonId.startsWith('math-addition-2'));
+    const sub1 = progress.filter((p) => p.lessonId.startsWith('math-subtraction-1'));
     expect(add1).toHaveLength(5);
     expect(add2).toHaveLength(5);
+    expect(sub1).toHaveLength(5);
   });
 });
 
@@ -453,10 +455,10 @@ describe('updateSettings re-applies skip logic', () => {
     await getStore().createUser('Settings', '6-7');
   });
 
-  it('changing from Starter to Challenger marks 10 lessons complete', async () => {
+  it('changing from Starter to Challenger marks 15 lessons complete', async () => {
     await getStore().updateSettings({ ageBand: '11-12' });
     const progress = await db.progress.toArray();
-    expect(progress).toHaveLength(10);
+    expect(progress).toHaveLength(15);
   });
 
   it('changing from Challenger to Starter clears skip progress', async () => {
