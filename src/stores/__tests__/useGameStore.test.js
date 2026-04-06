@@ -424,6 +424,46 @@ describe('createUser skip logic', () => {
   });
 });
 
+describe('createUser with placement', () => {
+  beforeEach(async () => {
+    const { seedDatabase } = await import('../../db/seed.js');
+    await seedDatabase();
+  });
+
+  it('stores startingTier and placementMethod', async () => {
+    await getStore().createUser('Placed', '8-10', { startingTier: 3, placementMethod: 'test' });
+    const { user } = getStore();
+    expect(user.startingTier).toBe(3);
+    expect(user.placementMethod).toBe('test');
+  });
+
+  it('defaults to startingTier 1 and manual when not provided', async () => {
+    await getStore().createUser('Default', '6-7');
+    const { user } = getStore();
+    expect(user.startingTier).toBe(1);
+    expect(user.placementMethod).toBe('manual');
+  });
+
+  it('Explorer with startingTier 3 skips first 2 addition lessons', async () => {
+    await getStore().createUser('Explorer3', '8-10', { startingTier: 3, placementMethod: 'test' });
+    const progress = await db.progress.toArray();
+    const addSkipped = progress.filter((p) => p.lessonId.startsWith('math-addition'));
+    expect(addSkipped).toHaveLength(2);
+    expect(addSkipped.map((p) => p.lessonId).sort()).toEqual([
+      'math-addition-lesson-1',
+      'math-addition-lesson-2',
+    ]);
+  });
+
+  it('Challenger with startingTier 2 skips add+sub units + first multiplication lesson', async () => {
+    await getStore().createUser('Chall2', '11-12', { startingTier: 2, placementMethod: 'test' });
+    const progress = await db.progress.toArray();
+    // 10 from unit skip (add + sub) + 1 from placement skip (mul lesson 1)
+    expect(progress).toHaveLength(11);
+    expect(progress.find((p) => p.lessonId === 'math-multiplication-lesson-1')).toBeDefined();
+  });
+});
+
 describe('updateSettings re-applies skip logic', () => {
   beforeEach(async () => {
     const { seedDatabase } = await import('../../db/seed.js');
