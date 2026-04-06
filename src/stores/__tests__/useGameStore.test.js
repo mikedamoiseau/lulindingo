@@ -397,18 +397,8 @@ describe('updateSettings', () => {
 
 describe('createUser skip logic', () => {
   beforeEach(async () => {
-    const { default: units } = await import('../../data/math/units.js');
-    await db.units.bulkAdd(units);
-    const lessonModules = {
-      'addition-1': (await import('../../data/math/lessons/addition-1.js')).default,
-      'addition-2': (await import('../../data/math/lessons/addition-2.js')).default,
-      'subtraction-1': (await import('../../data/math/lessons/subtraction-1.js')).default,
-      'addition-3': (await import('../../data/math/lessons/addition-3.js')).default,
-      'subtraction-2': (await import('../../data/math/lessons/subtraction-2.js')).default,
-    };
-    for (const lessons of Object.values(lessonModules)) {
-      await db.lessons.bulkAdd(lessons);
-    }
+    const { seedDatabase } = await import('../../db/seed.js');
+    await seedDatabase();
   });
 
   it('Starter (6-7) skips no units', async () => {
@@ -417,48 +407,34 @@ describe('createUser skip logic', () => {
     expect(progress).toHaveLength(0);
   });
 
-  it('Explorer (8-10) skips Addition 1', async () => {
+  it('Explorer (8-10) skips no units', async () => {
     await getStore().createUser('Explorer', '8-10');
     const progress = await db.progress.toArray();
-    expect(progress).toHaveLength(5);
-    expect(progress.every((p) => p.lessonId.startsWith('math-addition-1'))).toBe(true);
-    expect(progress.every((p) => p.completed === true)).toBe(true);
+    expect(progress).toHaveLength(0);
   });
 
-  it('Challenger (11-12) skips Addition 1, Addition 2, and Subtraction 1', async () => {
+  it('Challenger (11-12) skips Addition and Subtraction', async () => {
     await getStore().createUser('Challenger', '11-12');
     const progress = await db.progress.toArray();
-    expect(progress).toHaveLength(15);
-    const add1 = progress.filter((p) => p.lessonId.startsWith('math-addition-1'));
-    const add2 = progress.filter((p) => p.lessonId.startsWith('math-addition-2'));
-    const sub1 = progress.filter((p) => p.lessonId.startsWith('math-subtraction-1'));
-    expect(add1).toHaveLength(5);
-    expect(add2).toHaveLength(5);
-    expect(sub1).toHaveLength(5);
+    expect(progress).toHaveLength(10);
+    const add = progress.filter((p) => p.lessonId.includes('addition'));
+    const sub = progress.filter((p) => p.lessonId.includes('subtraction'));
+    expect(add).toHaveLength(5);
+    expect(sub).toHaveLength(5);
   });
 });
 
 describe('updateSettings re-applies skip logic', () => {
   beforeEach(async () => {
-    const { default: units } = await import('../../data/math/units.js');
-    await db.units.bulkAdd(units);
-    const lessonModules = {
-      'addition-1': (await import('../../data/math/lessons/addition-1.js')).default,
-      'addition-2': (await import('../../data/math/lessons/addition-2.js')).default,
-      'subtraction-1': (await import('../../data/math/lessons/subtraction-1.js')).default,
-      'addition-3': (await import('../../data/math/lessons/addition-3.js')).default,
-      'subtraction-2': (await import('../../data/math/lessons/subtraction-2.js')).default,
-    };
-    for (const lessons of Object.values(lessonModules)) {
-      await db.lessons.bulkAdd(lessons);
-    }
+    const { seedDatabase } = await import('../../db/seed.js');
+    await seedDatabase();
     await getStore().createUser('Settings', '6-7');
   });
 
-  it('changing from Starter to Challenger marks 15 lessons complete', async () => {
+  it('changing from Starter to Challenger marks 10 lessons complete', async () => {
     await getStore().updateSettings({ ageBand: '11-12' });
     const progress = await db.progress.toArray();
-    expect(progress).toHaveLength(15);
+    expect(progress).toHaveLength(10);
   });
 
   it('changing from Challenger to Starter clears skip progress', async () => {
