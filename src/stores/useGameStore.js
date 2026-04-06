@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { db } from '../db/database';
 import { calculateCurrentHearts } from '../utils/heartManager';
 import { getLocalDateString, calculateStreak } from '../utils/streakTracker';
+import { getSkippedLessonIds } from '../utils/skipUnits';
 
 const useGameStore = create((set, get) => ({
   user: null,
@@ -41,6 +42,22 @@ const useGameStore = create((set, get) => ({
       createdAt: new Date(),
     });
     const user = await db.users.get(id);
+
+    const allLessons = await db.lessons.toArray();
+    const skippedIds = getSkippedLessonIds(ageBand, allLessons);
+    if (skippedIds.length > 0) {
+      await db.progress.bulkPut(
+        skippedIds.map((lessonId) => ({
+          lessonId,
+          completed: true,
+          stars: 3,
+          bestAccuracy: 100,
+          attempts: 0,
+          completedAt: new Date(),
+        }))
+      );
+    }
+
     set({ user });
   },
 
@@ -139,6 +156,25 @@ const useGameStore = create((set, get) => ({
     const { user } = get();
     if (!user) return;
     await db.users.update(user.id, settings);
+
+    if (settings.ageBand) {
+      await db.progress.clear();
+      const allLessons = await db.lessons.toArray();
+      const skippedIds = getSkippedLessonIds(settings.ageBand, allLessons);
+      if (skippedIds.length > 0) {
+        await db.progress.bulkPut(
+          skippedIds.map((lessonId) => ({
+            lessonId,
+            completed: true,
+            stars: 3,
+            bestAccuracy: 100,
+            attempts: 0,
+            completedAt: new Date(),
+          }))
+        );
+      }
+    }
+
     set({ user: { ...user, ...settings } });
   },
 }));

@@ -394,3 +394,75 @@ describe('updateSettings', () => {
     expect(users[0].ageBand).toBe('11-12');
   });
 });
+
+describe('createUser skip logic', () => {
+  beforeEach(async () => {
+    const { default: units } = await import('../../data/math/units.js');
+    await db.units.bulkAdd(units);
+    const lessonModules = {
+      'addition-1': (await import('../../data/math/lessons/addition-1.js')).default,
+      'addition-2': (await import('../../data/math/lessons/addition-2.js')).default,
+      'subtraction-1': (await import('../../data/math/lessons/subtraction-1.js')).default,
+      'addition-3': (await import('../../data/math/lessons/addition-3.js')).default,
+      'subtraction-2': (await import('../../data/math/lessons/subtraction-2.js')).default,
+    };
+    for (const lessons of Object.values(lessonModules)) {
+      await db.lessons.bulkAdd(lessons);
+    }
+  });
+
+  it('Starter (6-7) skips no units', async () => {
+    await getStore().createUser('Starter', '6-7');
+    const progress = await db.progress.toArray();
+    expect(progress).toHaveLength(0);
+  });
+
+  it('Explorer (8-10) skips Addition 1', async () => {
+    await getStore().createUser('Explorer', '8-10');
+    const progress = await db.progress.toArray();
+    expect(progress).toHaveLength(5);
+    expect(progress.every((p) => p.lessonId.startsWith('math-addition-1'))).toBe(true);
+    expect(progress.every((p) => p.completed === true)).toBe(true);
+  });
+
+  it('Challenger (11-12) skips Addition 1 and Addition 2', async () => {
+    await getStore().createUser('Challenger', '11-12');
+    const progress = await db.progress.toArray();
+    expect(progress).toHaveLength(10);
+    const add1 = progress.filter((p) => p.lessonId.startsWith('math-addition-1'));
+    const add2 = progress.filter((p) => p.lessonId.startsWith('math-addition-2'));
+    expect(add1).toHaveLength(5);
+    expect(add2).toHaveLength(5);
+  });
+});
+
+describe('updateSettings re-applies skip logic', () => {
+  beforeEach(async () => {
+    const { default: units } = await import('../../data/math/units.js');
+    await db.units.bulkAdd(units);
+    const lessonModules = {
+      'addition-1': (await import('../../data/math/lessons/addition-1.js')).default,
+      'addition-2': (await import('../../data/math/lessons/addition-2.js')).default,
+      'subtraction-1': (await import('../../data/math/lessons/subtraction-1.js')).default,
+      'addition-3': (await import('../../data/math/lessons/addition-3.js')).default,
+      'subtraction-2': (await import('../../data/math/lessons/subtraction-2.js')).default,
+    };
+    for (const lessons of Object.values(lessonModules)) {
+      await db.lessons.bulkAdd(lessons);
+    }
+    await getStore().createUser('Settings', '6-7');
+  });
+
+  it('changing from Starter to Challenger marks 10 lessons complete', async () => {
+    await getStore().updateSettings({ ageBand: '11-12' });
+    const progress = await db.progress.toArray();
+    expect(progress).toHaveLength(10);
+  });
+
+  it('changing from Challenger to Starter clears skip progress', async () => {
+    await getStore().updateSettings({ ageBand: '11-12' });
+    await getStore().updateSettings({ ageBand: '6-7' });
+    const progress = await db.progress.toArray();
+    expect(progress).toHaveLength(0);
+  });
+});
