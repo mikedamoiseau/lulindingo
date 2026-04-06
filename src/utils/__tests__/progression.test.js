@@ -72,6 +72,13 @@ describe('getUnitStates', () => {
     expect(states[0].allComplete).toBe(false);
     expect(states[0].lessons).toEqual([]);
   });
+
+  it('handles sparse progressMap (some lessons have no progress entry)', () => {
+    const progress = { 'u1-l1': { completed: true } };
+    const states = getUnitStates(units, lessons, progress);
+    expect(states[0].isCurrentUnit).toBe(true);
+    expect(states[0].allComplete).toBe(false);
+  });
 });
 
 describe('getLessonStatus', () => {
@@ -126,6 +133,25 @@ describe('getLessonStatus', () => {
     expect(getLessonStatus(unitLessons, 1, progress)).toBe('completed');
     expect(getLessonStatus(unitLessons, 2, progress)).toBe('completed');
   });
+
+  it('returns locked for out-of-bounds positive index', () => {
+    expect(getLessonStatus(unitLessons, 10, {})).toBe('locked');
+  });
+
+  it('returns locked for negative index', () => {
+    expect(getLessonStatus(unitLessons, -1, {})).toBe('locked');
+  });
+
+  it('returns locked for empty unitLessons array', () => {
+    expect(getLessonStatus([], 0, {})).toBe('locked');
+  });
+
+  it('handles sparse progressMap (lesson exists but no progress entry)', () => {
+    const progress = { l1: { completed: true } };
+    // l2 has no entry in progressMap at all
+    expect(getLessonStatus(unitLessons, 1, progress)).toBe('current');
+    expect(getLessonStatus(unitLessons, 2, progress)).toBe('locked');
+  });
 });
 
 describe('getMaxExercises', () => {
@@ -143,5 +169,13 @@ describe('getMaxExercises', () => {
 
   it('defaults to 10 for unknown band', () => {
     expect(getMaxExercises('unknown')).toBe(10);
+  });
+
+  it('defaults to 10 for undefined', () => {
+    expect(getMaxExercises(undefined)).toBe(10);
+  });
+
+  it('defaults to 10 for null', () => {
+    expect(getMaxExercises(null)).toBe(10);
   });
 });

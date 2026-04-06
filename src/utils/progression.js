@@ -28,6 +28,7 @@ export function getUnitStates(units, lessons, progressMap) {
  * Returns: 'completed', 'current', or 'locked'
  */
 export function getLessonStatus(unitLessons, lessonIndex, progressMap) {
+  if (lessonIndex < 0 || lessonIndex >= unitLessons.length) return 'locked';
   const lesson = unitLessons[lessonIndex];
   if (progressMap[lesson.id]?.completed) return 'completed';
 
