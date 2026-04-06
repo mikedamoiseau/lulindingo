@@ -7,9 +7,17 @@ export async function seedDatabase() {
   const { default: units } = await import('../data/math/units.js');
   await db.units.bulkAdd(units);
 
-  const lessonModules = import.meta.glob('../data/math/lessons/*.js');
-  for (const path in lessonModules) {
-    const mod = await lessonModules[path]();
-    await db.lessons.bulkAdd(mod.default);
+  const lessons = [];
+  for (const unit of units) {
+    for (let tier = 1; tier <= 5; tier++) {
+      lessons.push({
+        id: `${unit.id}-lesson-${tier}`,
+        unitId: unit.id,
+        order: tier,
+        tier,
+        operation: unit.operation,
+      });
+    }
   }
+  await db.lessons.bulkAdd(lessons);
 }

@@ -6,7 +6,7 @@ import { db } from '../../db/database';
 import useGameStore from '../../stores/useGameStore';
 import { calculateXp, getLessonBonus } from '../../utils/xpCalculator';
 import { getMaxExercises } from '../../utils/progression';
-import { shuffleArray } from '../../utils/shuffle';
+import { generateExercises } from '../../utils/exerciseGenerator';
 import ProgressBar from './ProgressBar';
 import FeedbackBanner from './FeedbackBanner';
 import LessonSummary from './LessonSummary';
@@ -45,13 +45,11 @@ export default function LessonEngine() {
   const [retryUsed, setRetryUsed] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
 
-  const exercises = lesson?.exercises || [];
   const maxExercises = getMaxExercises(ageBand);
   const activeExercises = useMemo(
-    () => shuffleArray(exercises).slice(0, Math.min(exercises.length, maxExercises)),
-    // Re-shuffle only when the lesson changes, not on every re-render
+    () => lesson ? generateExercises(lesson.operation, ageBand, lesson.tier, maxExercises) : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lesson?.id]
+    [lesson?.id, ageBand]
   );
   const currentExercise = activeExercises[exerciseIndex];
 
