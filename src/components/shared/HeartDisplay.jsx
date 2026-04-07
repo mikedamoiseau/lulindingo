@@ -7,6 +7,7 @@ import styles from './HeartDisplay.module.css';
 export default function HeartDisplay() {
   const hearts = useGameStore((s) => s.user?.hearts ?? 5);
   const heartsLastRefill = useGameStore((s) => s.user?.heartsLastRefill);
+  const refillHearts = useGameStore((s) => s.refillHearts);
   const [remainingMs, setRemainingMs] = useState(null);
 
   useEffect(() => {
@@ -15,11 +16,14 @@ export default function HeartDisplay() {
       return;
     }
 
-    const tick = () => setRemainingMs(getNextRefillMs(heartsLastRefill));
+    const tick = () => {
+      setRemainingMs(getNextRefillMs(heartsLastRefill));
+      refillHearts();
+    };
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [hearts, heartsLastRefill]);
+  }, [hearts, heartsLastRefill, refillHearts]);
 
   const remainingMin = remainingMs != null ? Math.ceil(remainingMs / 60000) : null;
 

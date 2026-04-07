@@ -92,6 +92,16 @@ const useGameStore = create((set, get) => ({
     set({ user: { ...user, hearts } });
   },
 
+  refillHearts: async () => {
+    const { user } = get();
+    if (!user || user.hearts >= 5) return;
+    const hearts = calculateCurrentHearts(user.hearts, user.heartsLastRefill);
+    if (hearts !== user.hearts) {
+      await db.users.update(user.id, { hearts });
+      set({ user: { ...user, hearts } });
+    }
+  },
+
   addXp: async (amount) => {
     const { user } = get();
     if (!user) return;
