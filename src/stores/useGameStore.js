@@ -15,10 +15,13 @@ const useGameStore = create((set, get) => ({
     const users = await db.users.toArray();
     if (users.length > 0) {
       const user = users[0];
-      const hearts = calculateCurrentHearts(user.hearts, user.heartsLastRefill);
+      const refillResult = calculateCurrentHearts(user.hearts, user.heartsLastRefill);
       const currentStreak = calculateStreak(user.lastActiveDate, user.currentStreak);
       const updates = {};
-      if (hearts !== user.hearts) updates.hearts = hearts;
+      if (refillResult.hearts !== user.hearts) {
+        updates.hearts = refillResult.hearts;
+        updates.heartsLastRefill = refillResult.heartsLastRefill;
+      }
       if (currentStreak !== user.currentStreak) updates.currentStreak = currentStreak;
       if (Object.keys(updates).length > 0) {
         await db.users.update(user.id, updates);
@@ -90,6 +93,16 @@ const useGameStore = create((set, get) => ({
     const hearts = user.hearts + 1;
     await db.users.update(user.id, { hearts });
     set({ user: { ...user, hearts } });
+  },
+
+  refillHearts: async () => {
+    const { user } = get();
+    if (!user || user.hearts >= 5) return;
+    const { hearts, heartsLastRefill } = calculateCurrentHearts(user.hearts, user.heartsLastRefill);
+    if (hearts !== user.hearts) {
+      await db.users.update(user.id, { hearts, heartsLastRefill });
+      set({ user: { ...user, hearts, heartsLastRefill } });
+    }
   },
 
   addXp: async (amount) => {

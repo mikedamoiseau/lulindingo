@@ -17,7 +17,13 @@ export default function LearningPath() {
   const lessons = useLiveQuery(() => db.lessons.orderBy('order').toArray(), []);
   const progress = useLiveQuery(() => db.progress.toArray(), []);
 
-  if (!units || !lessons || !progress) return null;
+  if (!units || !lessons || !progress) {
+    return (
+      <div className={styles.loadingContainer}>
+        <div className={styles.spinner} />
+      </div>
+    );
+  }
 
   const progressMap = {};
   progress.forEach((p) => {

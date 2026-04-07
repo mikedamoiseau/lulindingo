@@ -62,7 +62,6 @@ export default function LessonEngine() {
         if (!isPractice) {
           const xp = calculateXp();
           addLessonXp(xp);
-          addXp(xp);
           setXpFlyUp(Date.now());
         }
         recordAnswer(true);
@@ -87,7 +86,7 @@ export default function LessonEngine() {
         }
       }
     },
-    [currentExercise, retryUsed, isPractice, addLessonXp, addXp, recordAnswer, loseHeart]
+    [currentExercise, retryUsed, isPractice, addLessonXp, recordAnswer, loseHeart]
   );
 
   const handleContinue = useCallback(async () => {
@@ -101,7 +100,7 @@ export default function LessonEngine() {
       if (!isPractice) {
         const bonus = getLessonBonus();
         addLessonXp(bonus);
-        addXp(bonus);
+        await addXp(lessonXp + bonus);
         await updateStreak();
         const accuracy =
           activeExercises.length > 0
@@ -122,6 +121,7 @@ export default function LessonEngine() {
     exerciseIndex,
     activeExercises.length,
     lessonCorrect,
+    lessonXp,
     id,
     isPractice,
     addLessonXp,
