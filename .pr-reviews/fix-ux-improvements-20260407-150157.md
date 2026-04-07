@@ -92,3 +92,14 @@ All 166 tests pass.
 
 ---
 
+
+## [Codex — Reviewer] Round 3
+
+LGTM: The previously blocking correctness issues are addressed; the current code now refills hearts atomically and defers XP persistence until lesson completion.
+
+No defensible blocking findings remain in the current diff. The heart refill path now advances `heartsLastRefill` alongside `hearts`, which closes the rapid over-refill bug, and the lesson flow no longer persists per-answer XP before the lesson is successfully finished.
+
+Residual risk: I do not see an end-to-end test covering the quit-confirmation flow or timer-driven in-session heart refill; the added coverage is focused on `heartManager`, so regressions in component/store wiring would still rely on manual verification.
+
+---
+
