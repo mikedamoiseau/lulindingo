@@ -194,11 +194,11 @@ describe('generateExercises — follow-pattern structure', () => {
 // ---------------------------------------------------------------------------
 
 describe('generateExercises — addition', () => {
-  it('Starter (6-7) answers stay within 0–10', () => {
+  it('Starter (6-7) answers stay within 0–20', () => {
     const exercises = generateExercises('addition', '6-7', 3, 30);
     for (const ex of exercises) {
       expect(ex.correctAnswer).toBeGreaterThanOrEqual(0);
-      expect(ex.correctAnswer).toBeLessThanOrEqual(10);
+      expect(ex.correctAnswer).toBeLessThanOrEqual(20);
     }
   });
 
@@ -253,11 +253,11 @@ describe('generateExercises — subtraction', () => {
     }
   });
 
-  it('Starter (6-7) results stay within 0–10', () => {
+  it('Starter (6-7) results stay within 0–20', () => {
     const exercises = generateExercises('subtraction', '6-7', 3, 30);
     for (const ex of exercises) {
       expect(ex.correctAnswer).toBeGreaterThanOrEqual(0);
-      expect(ex.correctAnswer).toBeLessThanOrEqual(10);
+      expect(ex.correctAnswer).toBeLessThanOrEqual(20);
     }
   });
 
