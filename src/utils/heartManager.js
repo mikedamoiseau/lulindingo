@@ -1,4 +1,4 @@
-const MAX_HEARTS = 5;
+const MAX_HEARTS = 10;
 const REFILL_INTERVAL_MS = 20 * 60 * 1000; // 20 minutes
 
 export function calculateCurrentHearts(hearts, heartsLastRefill) {

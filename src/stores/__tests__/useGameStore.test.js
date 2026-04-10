@@ -43,7 +43,7 @@ describe('createUser', () => {
     expect(user).not.toBeNull();
     expect(user.name).toBe('TestKid');
     expect(user.ageBand).toBe('8-10');
-    expect(user.hearts).toBe(5);
+    expect(user.hearts).toBe(10);
     expect(user.totalXp).toBe(0);
     expect(user.currentStreak).toBe(0);
     expect(user.longestStreak).toBe(0);
@@ -69,7 +69,7 @@ describe('loadUser', () => {
     await db.users.add({
       name: 'Existing',
       totalXp: 100,
-      hearts: 5,
+      hearts: 10,
       heartsLastRefill: new Date(),
       currentStreak: 3,
       longestStreak: 10,
@@ -105,7 +105,7 @@ describe('loadUser', () => {
     await db.users.add({
       name: 'BrokenStreak',
       totalXp: 0,
-      hearts: 5,
+      hearts: 10,
       heartsLastRefill: new Date(),
       currentStreak: 10,
       longestStreak: 10,
@@ -121,7 +121,7 @@ describe('loadUser', () => {
     await db.users.add({
       name: 'ValidStreak',
       totalXp: 0,
-      hearts: 5,
+      hearts: 10,
       heartsLastRefill: new Date(),
       currentStreak: 5,
       longestStreak: 5,
@@ -159,12 +159,12 @@ describe('loseHeart', () => {
 
   it('decrements hearts by 1', async () => {
     await getStore().loseHeart();
-    expect(getStore().user.hearts).toBe(4);
+    expect(getStore().user.hearts).toBe(9);
   });
 
   it('does nothing at 0 hearts', async () => {
-    // Lose all 5 hearts
-    for (let i = 0; i < 5; i++) await getStore().loseHeart();
+    // Lose all 10 hearts
+    for (let i = 0; i < 10; i++) await getStore().loseHeart();
     expect(getStore().user.hearts).toBe(0);
     // Try to lose another
     await getStore().loseHeart();
@@ -181,7 +181,7 @@ describe('loseHeart', () => {
   it('persists to DB', async () => {
     await getStore().loseHeart();
     const users = await db.users.toArray();
-    expect(users[0].hearts).toBe(4);
+    expect(users[0].hearts).toBe(9);
   });
 });
 
@@ -191,21 +191,21 @@ describe('gainHeart', () => {
   });
 
   it('increments hearts by 1 when below max', async () => {
-    await getStore().loseHeart(); // 4
-    await getStore().gainHeart(); // 5
-    expect(getStore().user.hearts).toBe(5);
+    await getStore().loseHeart(); // 9
+    await getStore().gainHeart(); // 10
+    expect(getStore().user.hearts).toBe(10);
   });
 
   it('does nothing at max hearts', async () => {
     await getStore().gainHeart();
-    expect(getStore().user.hearts).toBe(5);
+    expect(getStore().user.hearts).toBe(10);
   });
 
   it('persists to DB', async () => {
     await getStore().loseHeart();
     await getStore().gainHeart();
     const users = await db.users.toArray();
-    expect(users[0].hearts).toBe(5);
+    expect(users[0].hearts).toBe(10);
   });
 });
 

@@ -5,7 +5,7 @@ import { getNextRefillMs, MAX_HEARTS } from '../../utils/heartManager';
 import styles from './HeartDisplay.module.css';
 
 export default function HeartDisplay() {
-  const hearts = useGameStore((s) => s.user?.hearts ?? 5);
+  const hearts = useGameStore((s) => s.user?.hearts ?? MAX_HEARTS);
   const heartsLastRefill = useGameStore((s) => s.user?.heartsLastRefill);
   const refillHearts = useGameStore((s) => s.refillHearts);
   const [remainingMs, setRemainingMs] = useState(null);
