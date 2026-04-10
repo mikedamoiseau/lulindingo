@@ -4,12 +4,12 @@ import { calculateCurrentHearts, getNextRefillMs, MAX_HEARTS, REFILL_INTERVAL_MS
 describe('heartManager', () => {
   it('returns MAX_HEARTS when already full', () => {
     const now = new Date();
-    expect(calculateCurrentHearts(5, now).hearts).toBe(5);
+    expect(calculateCurrentHearts(10, now).hearts).toBe(10);
   });
 
   it('returns MAX_HEARTS when full regardless of time elapsed', () => {
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-    expect(calculateCurrentHearts(5, twoHoursAgo).hearts).toBe(5);
+    expect(calculateCurrentHearts(10, twoHoursAgo).hearts).toBe(10);
   });
 
   it('refills 1 heart after 20 minutes', () => {
@@ -29,14 +29,15 @@ describe('heartManager', () => {
   });
 
   it('caps at MAX_HEARTS even with long elapsed time', () => {
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-    expect(calculateCurrentHearts(0, twoHoursAgo).hearts).toBe(5);
+    const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+    // 0 hearts + 12 refills (240min / 20min) = 12, capped at 10
+    expect(calculateCurrentHearts(0, fourHoursAgo).hearts).toBe(10);
   });
 
   it('caps at MAX_HEARTS when refills would exceed max', () => {
     const sixtyMinAgo = new Date(Date.now() - 60 * 60 * 1000);
-    // 4 hearts + 3 refills (60min / 20min) = 7, capped at 5
-    expect(calculateCurrentHearts(4, sixtyMinAgo).hearts).toBe(5);
+    // 8 hearts + 3 refills (60min / 20min) = 11, capped at 10
+    expect(calculateCurrentHearts(8, sixtyMinAgo).hearts).toBe(10);
   });
 
   it('advances heartsLastRefill by consumed intervals', () => {
@@ -50,8 +51,8 @@ describe('heartManager', () => {
 
   it('snaps heartsLastRefill to now when reaching max hearts', () => {
     const before = Date.now();
-    const twoHoursAgo = new Date(before - 2 * 60 * 60 * 1000);
-    const result = calculateCurrentHearts(0, twoHoursAgo);
+    const fourHoursAgo = new Date(before - 4 * 60 * 60 * 1000);
+    const result = calculateCurrentHearts(0, fourHoursAgo);
     const after = Date.now();
     const refillTime = new Date(result.heartsLastRefill).getTime();
     expect(refillTime).toBeGreaterThanOrEqual(before);
@@ -73,7 +74,7 @@ describe('heartManager', () => {
   });
 
   it('exports correct constants', () => {
-    expect(MAX_HEARTS).toBe(5);
+    expect(MAX_HEARTS).toBe(10);
     expect(REFILL_INTERVAL_MS).toBe(20 * 60 * 1000);
   });
 });

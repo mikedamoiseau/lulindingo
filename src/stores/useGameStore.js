@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { db } from '../db/database';
-import { calculateCurrentHearts } from '../utils/heartManager';
+import { calculateCurrentHearts, MAX_HEARTS } from '../utils/heartManager';
 import { getLocalDateString, calculateStreak } from '../utils/streakTracker';
 import { getSkippedLessonIds, getPlacementSkippedLessonIds, getFirstActiveUnitId } from '../utils/skipUnits';
 
@@ -37,7 +37,7 @@ const useGameStore = create((set, get) => ({
     const id = await db.users.add({
       name,
       totalXp: 0,
-      hearts: 5,
+      hearts: MAX_HEARTS,
       heartsLastRefill: new Date(),
       currentStreak: 0,
       longestStreak: 0,
@@ -89,7 +89,7 @@ const useGameStore = create((set, get) => ({
 
   gainHeart: async () => {
     const { user } = get();
-    if (!user || user.hearts >= 5) return;
+    if (!user || user.hearts >= MAX_HEARTS) return;
     const hearts = user.hearts + 1;
     await db.users.update(user.id, { hearts });
     set({ user: { ...user, hearts } });
@@ -97,7 +97,7 @@ const useGameStore = create((set, get) => ({
 
   refillHearts: async () => {
     const { user } = get();
-    if (!user || user.hearts >= 5) return;
+    if (!user || user.hearts >= MAX_HEARTS) return;
     const { hearts, heartsLastRefill } = calculateCurrentHearts(user.hearts, user.heartsLastRefill);
     if (hearts !== user.hearts) {
       await db.users.update(user.id, { hearts, heartsLastRefill });
