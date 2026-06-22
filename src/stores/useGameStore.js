@@ -153,26 +153,35 @@ const useGameStore = create((set, get) => ({
     const { user } = get();
     if (!user) return Promise.resolve();
     const run = async () => {
-      const today = getLocalDateString();
-      let row = await db.dailyQuests.get(today);
-      if (!row) {
-        await get().ensureTodayQuests();
-        row = await db.dailyQuests.get(today);
+      try {
+        const today = getLocalDateString();
+        let row = await db.dailyQuests.get(today);
+        if (!row) {
+          await get().ensureTodayQuests();
+          row = await db.dailyQuests.get(today);
+        }
+        if (!row) return;
+        await db.dailyQuests.update(today, patch(row));
+      } catch (e) {
+        // Quest progress is best-effort: swallow so one failed write can't
+        // break the serialization chain or surface as an unhandled rejection.
+        console.error('daily-quest write failed', e);
       }
-      if (!row) return;
-      await db.dailyQuests.update(today, patch(row));
     };
     const next = get()._questWriteQueue.then(run, run);
     set({ _questWriteQueue: next });
     return next;
   },
 
-  recordAnswer: (correct, operation) => {
+  recordAnswer: (correct, operation, isPractice = false) => {
     set((s) => ({
       lessonCorrect: s.lessonCorrect + (correct ? 1 : 0),
       lessonTotal: s.lessonTotal + 1,
       _currentRunCorrect: correct ? s._currentRunCorrect + 1 : 0,
     }));
+    // Practice replays must not accrue daily-quest progress (no heart cost ->
+    // would let kids farm answer/streak quests).
+    if (isPractice) return;
     const run = get()._currentRunCorrect;
     // fire-and-forget DB write; UI reads via useLiveQuery
     get().bumpQuestStats((row) => {
@@ -261,17 +270,26 @@ const useGameStore = create((set, get) => ({
     const { user } = get();
     if (!user) return { claimed: false };
     const today = getLocalDateString();
-    const row = await db.dailyQuests.get(today);
-    if (!row) return { claimed: false };
-    if (row.claimed) return { claimed: true, alreadyClaimed: true };
 
-    const quests = row.questIds
-      .map((id) => QUEST_CATALOG.find((q) => q.id === id))
-      .filter(Boolean);
-    if (!allQuestsDone(quests, row)) return { claimed: false };
+    // Atomically check-and-set `claimed` inside a transaction so a rapid
+    // double-tap (two concurrent calls) can't both read claimed=false and
+    // each grant a reward. Only the call that flips false->true proceeds.
+    const outcome = await db.transaction('rw', db.dailyQuests, async () => {
+      const row = await db.dailyQuests.get(today);
+      if (!row) return 'none';
+      if (row.claimed) return 'already';
+      const quests = row.questIds
+        .map((id) => QUEST_CATALOG.find((q) => q.id === id))
+        .filter(Boolean);
+      if (!allQuestsDone(quests, row)) return 'incomplete';
+      await db.dailyQuests.update(today, { claimed: true });
+      return 'won';
+    });
 
-    // flip the flag first (idempotency guard), then grant reward
-    await db.dailyQuests.update(today, { claimed: true });
+    if (outcome === 'already') return { claimed: true, alreadyClaimed: true };
+    if (outcome !== 'won') return { claimed: false };
+
+    // Reward granted exactly once, only for the winning claim.
     if (user.hearts < MAX_HEARTS) {
       await get().gainHeart();
       return { claimed: true, reward: 'heart' };

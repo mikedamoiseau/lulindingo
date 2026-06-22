@@ -96,7 +96,7 @@ export default function LessonEngine() {
           addLessonXp(xp);
           setXpFlyUp(Date.now());
         }
-        recordAnswer(true, lesson?.operation);
+        recordAnswer(true, lesson?.operation, isPractice);
         setFeedback({
           isCorrect: true,
           isEstimation,
@@ -118,7 +118,7 @@ export default function LessonEngine() {
           if (!isPractice && !isEstimation) {
             loseHeart();
           }
-          recordAnswer(false, lesson?.operation);
+          recordAnswer(false, lesson?.operation, isPractice);
           setRetryUsed(false);
           // build-equation has no "a op b = []" string; reconstruct a friendly
           // worked equation for the banner from its canonical solution.

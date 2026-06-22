@@ -601,4 +601,38 @@ describe('daily quests', () => {
     const heartsAfter = getStore().user.hearts;
     expect(heartsAfter).toBeLessThanOrEqual(heartsBefore + 1);
   });
+
+  it('claimQuestReward grants exactly once under a concurrent double-tap', async () => {
+    await getStore().ensureTodayQuests();
+    await db.dailyQuests.update(getLocalDateString(), {
+      answerCount: 999,
+      answerByOperation: { addition: 999, subtraction: 999, multiplication: 999, division: 999 },
+      bestStreakInSession: 999,
+      lessonCount: 999,
+      bestLessonStars: 3,
+    });
+    // ensure the reward path is "heart" (room to gain) so we can count grants
+    await db.users.update(getStore().user.id, { hearts: 1 });
+    await getStore().loadUser();
+    const heartsBefore = getStore().user.hearts;
+
+    // Fire two claims simultaneously (rapid double-tap).
+    const [a, b] = await Promise.all([
+      getStore().claimQuestReward(),
+      getStore().claimQuestReward(),
+    ]);
+    const grants = [a, b].filter((r) => r.reward).length;
+    expect(grants).toBe(1); // only one call actually grants
+    const heartsAfter = getStore().user.hearts;
+    expect(heartsAfter).toBe(heartsBefore + 1); // reward applied exactly once
+  });
+
+  it('practice answers do not accrue quest progress', async () => {
+    await getStore().ensureTodayQuests();
+    getStore().recordAnswer(true, 'multiplication', true); // isPractice = true
+    getStore().recordAnswer(true, 'multiplication', true);
+    await getStore()._questWriteQueue;
+    const row = await db.dailyQuests.get(getLocalDateString());
+    expect(row.answerCount).toBe(0);
+  });
 });
