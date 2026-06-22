@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 import { db } from '../../db/database';
 import useGameStore, { getDueFactCount } from '../useGameStore';
@@ -726,5 +726,34 @@ describe('fact vault (recordAnswer threading)', () => {
     ]);
     const facts = await db.facts.toArray();
     expect(getDueFactCount(facts)).toBe(2);
+  });
+});
+
+describe('streakHistory time-of-day', () => {
+  beforeEach(async () => {
+    const { seedDatabase } = await import('../../db/seed.js');
+    await seedDatabase();
+    await getStore().createUser('TimeKid', '8-10');
+  });
+
+  it('updateStreak seeds a timeOfDay bucket object', async () => {
+    await getStore().updateStreak();
+    const today = (await db.streakHistory.toArray())[0];
+    expect(today.timeOfDay).toBeDefined();
+    expect(today.timeOfDay).toHaveProperty('morning');
+    expect(today.timeOfDay).toHaveProperty('afternoon');
+    expect(today.timeOfDay).toHaveProperty('evening');
+  });
+
+  it('completeLesson increments the bucket for the current hour', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); // mock the clock only — leave timers real so fake-indexeddb works
+    vi.setSystemTime(new Date('2026-06-22T09:00:00')); // morning
+    await getStore().updateStreak();
+    getStore().addLessonXp(60);
+    await getStore().completeLesson('math-addition-lesson-1', 100);
+    const today = (await db.streakHistory.toArray())[0];
+    expect(today.timeOfDay.morning).toBe(1);
+    expect(today.timeOfDay.afternoon).toBe(0);
+    vi.useRealTimers();
   });
 });

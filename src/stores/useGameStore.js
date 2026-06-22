@@ -5,6 +5,7 @@ import { getLocalDateString, calculateStreak } from '../utils/streakTracker';
 import { getSkippedLessonIds, getPlacementSkippedLessonIds, getFirstActiveUnitId } from '../utils/skipUnits';
 import { selectDailyQuests, allQuestsDone, QUEST_CATALOG } from '../utils/dailyQuests';
 import { signatureForExercise, applyOutcome, isDue } from '../utils/factTracking';
+import { bucketHour } from '../utils/insights';
 
 /**
  * Count facts due on or before today. Pure selector used by the home path
@@ -274,6 +275,7 @@ const useGameStore = create((set, get) => ({
       date: today,
       lessonsCompleted: 0,
       xpEarned: 0,
+      timeOfDay: { morning: 0, afternoon: 0, evening: 0 },
     });
     set({
       user: {
@@ -301,9 +303,16 @@ const useGameStore = create((set, get) => ({
     const today = getLocalDateString();
     const hist = await db.streakHistory.get(today);
     if (hist) {
+      // Bucket the current hour into morning/afternoon/evening so the Grown-Up
+      // Corner activity card has real data. Spread defends pre-upgrade rows that
+      // lack the timeOfDay shape.
+      const bucket = bucketHour(new Date().getHours());
+      const timeOfDay = { morning: 0, afternoon: 0, evening: 0, ...(hist.timeOfDay || {}) };
+      timeOfDay[bucket] += 1;
       await db.streakHistory.update(today, {
         lessonsCompleted: hist.lessonsCompleted + 1,
         xpEarned: hist.xpEarned + get().lessonXp,
+        timeOfDay,
       });
     }
 
