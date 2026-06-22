@@ -70,6 +70,11 @@ function patternToSpeech(pattern) {
 export function exerciseToSpeech(exercise) {
   if (!exercise) return '';
 
+  // Story problems read the narrative prompt, not the bare equation.
+  if (exercise.type === 'story-problem' && exercise.prompt) {
+    return exercise.prompt;
+  }
+
   if (exercise.type === 'follow-pattern' && Array.isArray(exercise.pattern)) {
     const rows = patternToSpeech(exercise.pattern);
     const opts = optionsToSpeech(exercise.options);
