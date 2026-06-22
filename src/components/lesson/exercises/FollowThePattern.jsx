@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import SpeakerButton from '../../shared/SpeakerButton';
+import { exerciseToSpeech } from '../../../utils/speakable';
 import styles from './FollowThePattern.module.css';
 
-export default function FollowThePattern({ exercise, onAnswer }) {
+export default function FollowThePattern({ exercise, onAnswer, speechRate = 1.0, readAloud = false }) {
   const [selected, setSelected] = useState(null);
 
   const handleCheck = () => {
@@ -11,7 +13,10 @@ export default function FollowThePattern({ exercise, onAnswer }) {
 
   return (
     <div className={styles.container}>
-      <p className={styles.instruction}>{exercise.instruction || 'Follow the pattern'}</p>
+      <div className={styles.instructionRow}>
+        <p className={styles.instruction}>{exercise.instruction || 'Follow the pattern'}</p>
+        {readAloud && <SpeakerButton text={exerciseToSpeech(exercise)} rate={speechRate} />}
+      </div>
       <div className={styles.table}>
         {exercise.pattern.map((row, i) => (
           <div key={i} className={styles.row}>

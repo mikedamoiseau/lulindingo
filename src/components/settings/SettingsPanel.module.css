@@ -141,3 +141,10 @@
   font-size: var(--text-sm);
   border: 1px solid var(--border);
 }
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}

@@ -45,6 +45,9 @@ const useGameStore = create((set, get) => ({
       ageBand,
       startingTier,
       placementMethod,
+      readAloud: false,
+      speechRate: 1.0,
+      speechVoiceURI: null,
       createdAt: new Date(),
     });
     const user = await db.users.get(id);
