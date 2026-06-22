@@ -13,7 +13,7 @@
  *   story-problem  { type, equation, prompt, instruction, correctAnswer }
  */
 
-import { wrapStory } from './storyTemplates';
+import { wrapStory } from './storyTemplates.js';
 
 // ---------------------------------------------------------------------------
 // Constants
