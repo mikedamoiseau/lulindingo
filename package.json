@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "validate": "node scripts/validate-lessons.js"
+    "validate": "node scripts/validate-exercises.js"
   },
   "dependencies": {
     "dexie": "^4.4.2",
