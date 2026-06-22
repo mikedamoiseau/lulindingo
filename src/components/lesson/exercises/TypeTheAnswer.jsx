@@ -4,7 +4,7 @@ import SpeakerButton from '../../shared/SpeakerButton';
 import { exerciseToSpeech } from '../../../utils/speakable';
 import styles from './TypeTheAnswer.module.css';
 
-export default function TypeTheAnswer({ exercise, onAnswer, speechRate = 1.0 }) {
+export default function TypeTheAnswer({ exercise, onAnswer, speechRate = 1.0, readAloud = false }) {
   const [value, setValue] = useState('');
 
   const handleDigit = (d) => {
@@ -26,7 +26,7 @@ export default function TypeTheAnswer({ exercise, onAnswer, speechRate = 1.0 }) 
     <div className={styles.container}>
       <div className={styles.instructionRow}>
         <p className={styles.instruction}>{exercise.instruction || 'Type the answer'}</p>
-        <SpeakerButton text={exerciseToSpeech(exercise)} rate={speechRate} />
+        {readAloud && <SpeakerButton text={exerciseToSpeech(exercise)} rate={speechRate} />}
       </div>
       <div className={styles.equation}>
         <span>{parts[0]}</span>

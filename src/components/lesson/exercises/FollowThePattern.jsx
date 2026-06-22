@@ -4,7 +4,7 @@ import SpeakerButton from '../../shared/SpeakerButton';
 import { exerciseToSpeech } from '../../../utils/speakable';
 import styles from './FollowThePattern.module.css';
 
-export default function FollowThePattern({ exercise, onAnswer, speechRate = 1.0 }) {
+export default function FollowThePattern({ exercise, onAnswer, speechRate = 1.0, readAloud = false }) {
   const [selected, setSelected] = useState(null);
 
   const handleCheck = () => {
@@ -15,7 +15,7 @@ export default function FollowThePattern({ exercise, onAnswer, speechRate = 1.0 
     <div className={styles.container}>
       <div className={styles.instructionRow}>
         <p className={styles.instruction}>{exercise.instruction || 'Follow the pattern'}</p>
-        <SpeakerButton text={exerciseToSpeech(exercise)} rate={speechRate} />
+        {readAloud && <SpeakerButton text={exerciseToSpeech(exercise)} rate={speechRate} />}
       </div>
       <div className={styles.table}>
         {exercise.pattern.map((row, i) => (

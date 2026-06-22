@@ -4,7 +4,7 @@ import SpeakerButton from '../../shared/SpeakerButton';
 import { exerciseToSpeech } from '../../../utils/speakable';
 import styles from './SelectTheAnswer.module.css';
 
-export default function SelectTheAnswer({ exercise, onAnswer, speechRate = 1.0 }) {
+export default function SelectTheAnswer({ exercise, onAnswer, speechRate = 1.0, readAloud = false }) {
   const [selected, setSelected] = useState(null);
 
   const handleCheck = () => {
@@ -17,7 +17,7 @@ export default function SelectTheAnswer({ exercise, onAnswer, speechRate = 1.0 }
     <div className={styles.container}>
       <div className={styles.instructionRow}>
         <p className={styles.instruction}>{exercise.instruction || 'Select the answer'}</p>
-        <SpeakerButton text={exerciseToSpeech(exercise)} rate={speechRate} />
+        {readAloud && <SpeakerButton text={exerciseToSpeech(exercise)} rate={speechRate} />}
       </div>
       <div className={styles.equation}>
         <span>{parts[0]}</span>

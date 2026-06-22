@@ -176,7 +176,7 @@ export default function LessonEngine() {
 
   const exerciseComponent = (() => {
     if (!currentExercise) return null;
-    const props = { exercise: currentExercise, onAnswer: handleAnswer, speechRate };
+    const props = { exercise: currentExercise, onAnswer: handleAnswer, speechRate, readAloud };
     switch (currentExercise.type) {
       case 'type-answer':
         return <TypeTheAnswer key={exerciseIndex} {...props} />;
