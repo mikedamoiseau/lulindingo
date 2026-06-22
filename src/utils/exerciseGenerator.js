@@ -636,7 +636,11 @@ export function generateExercises(operation, ageBand, tier, count, options = {})
     );
   }
 
-  const { variant } = options; // 'remainder' for the division remainder mode
+  // variant: 'remainder' for the division remainder mode.
+  // forwardOnly: restrict to forward "a op b = result" exercises (a real
+  // equation string + numeric result answer). Estimation mode needs this —
+  // missing-number's answer is an operand and build-equation has no equation.
+  const { variant, forwardOnly } = options;
   const rangeMax = AGE_BAND_MAX[ageBand] ?? AGE_BAND_MAX['11-12'];
   const exercises = [];
 
@@ -653,6 +657,11 @@ export function generateExercises(operation, ageBand, tier, count, options = {})
     // Remainder variant has no equation-puzzle representation in v1 — fall the
     // new types back to a forward typed answer so the variant stays type+story.
     if (variant === 'remainder' && (exType === 'missing-number' || exType === 'build-equation')) {
+      exType = 'type-answer';
+    }
+
+    // Forward-only callers (estimation) can't use the puzzle types.
+    if (forwardOnly && (exType === 'missing-number' || exType === 'build-equation')) {
       exType = 'type-answer';
     }
 

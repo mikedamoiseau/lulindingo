@@ -62,7 +62,9 @@ export default function LessonEngine() {
     if (!lesson) return [];
     if (isEstimation) {
       const tier = lesson.tier >= 4 ? lesson.tier : 5; // upper tiers only (D2)
-      const base = generateExercises(lesson.operation, ageBand, tier, maxExercises);
+      // forwardOnly: estimation needs "a op b = result" exercises; the puzzle
+      // types (missing-number/build-equation) have no result to estimate.
+      const base = generateExercises(lesson.operation, ageBand, tier, maxExercises, { forwardOnly: true });
       // Alternate bucket / typed variants, starting with bucket (D5).
       return base.map((ex, i) => buildEstimationExercise(ex, i % 2 === 0 ? 'bucket' : 'type'));
     }

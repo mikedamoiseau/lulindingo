@@ -442,6 +442,23 @@ describe('story-problem type', () => {
   });
 });
 
+describe('forwardOnly option (estimation)', () => {
+  it('never emits puzzle types and every exercise has a real equation + numeric answer', () => {
+    for (const op of ['addition', 'subtraction', 'multiplication']) {
+      for (const band of ['8-10', '11-12']) {
+        const ex = generateExercises(op, band, 5, 12, { forwardOnly: true });
+        for (const e of ex) {
+          expect(['missing-number', 'build-equation']).not.toContain(e.type);
+          expect(typeof e.equation).toBe('string');
+          expect(e.equation).toContain('[]');
+          expect(typeof e.correctAnswer).toBe('number');
+          expect(Number.isFinite(e.correctAnswer)).toBe(true);
+        }
+      }
+    }
+  });
+});
+
 describe('division remainder variant', () => {
   it('produces "q r r" answers with 0 < r < divisor for explorer remainder', () => {
     const ex = generateExercises('division', '8-10', 3, 12, { variant: 'remainder' });
