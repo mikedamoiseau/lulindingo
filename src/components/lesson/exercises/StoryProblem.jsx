@@ -41,6 +41,10 @@ export default function StoryProblem({ exercise, onAnswer, speechRate = 1.0, rea
         <span className={styles.emoji}>📖</span>
         <p className={styles.prompt}>{exercise.prompt}</p>
       </div>
+      {/* The underlying number sentence, exposed for assistive tech (and e2e). */}
+      <span className={styles.srOnly} data-testid="story-equation">
+        {exercise.equation}
+      </span>
       <div className={styles.inputArea}>
         <div className={styles.inputField}>
           {value || (
