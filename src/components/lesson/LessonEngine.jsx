@@ -215,7 +215,10 @@ export default function LessonEngine() {
             ? Math.round((lessonCorrect / activeExercises.length) * 100)
             : 0;
         await completeLesson(id, accuracy, isPractice);
-      } else {
+      } else if (!isReview) {
+        // Lesson-replay practice earns a heart (by design); spaced Review is
+        // pure enrichment — no hearts, no XP — and is always available, so
+        // awarding a heart here would let it be farmed.
         await gainHeart();
       }
       setFeedback(null);
@@ -232,6 +235,7 @@ export default function LessonEngine() {
     lessonXp,
     id,
     isPractice,
+    isReview,
     addLessonXp,
     addXp,
     updateStreak,

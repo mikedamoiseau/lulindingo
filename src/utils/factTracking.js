@@ -117,13 +117,18 @@ export function isDue(fact, today = getLocalDateString()) {
 }
 
 /**
- * Ordered list of weak-fact signatures to steer a generated set toward.
- * Order: due-and-weak first, then by ascending box, then oldest lastSeen.
- * Weak-but-not-due facts follow due ones. Filters by operation and caps at max.
+ * Ordered list of fact signatures to steer a generated set toward.
+ * Targets a fact if it is weak (low box) OR due for review — a fact promoted
+ * past the weak threshold that later comes due must still be practiced, and
+ * the Review callout (getDueFactCount) counts exactly those due facts, so the
+ * two must agree or a due high-box fact would surface forever without ever
+ * being targeted.
+ * Order: due first, then by ascending box, then oldest lastSeen.
+ * Filters by operation and caps at max.
  */
 export function selectWeakFactTargets(facts, { operation, max = Infinity, today = getLocalDateString() } = {}) {
   const weak = (facts ?? [])
-    .filter((f) => f && isWeak(f) && (!operation || f.operation === operation));
+    .filter((f) => f && (isWeak(f) || isDue(f, today)) && (!operation || f.operation === operation));
 
   weak.sort((x, y) => {
     const xd = isDue(x, today) ? 0 : 1;

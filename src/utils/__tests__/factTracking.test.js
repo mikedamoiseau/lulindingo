@@ -190,11 +190,16 @@ describe('selectWeakFactTargets', () => {
 
   it('returns due-and-weak first, ascending box, oldest lastSeen tiebreak', () => {
     const targets = selectWeakFactTargets(facts, { operation: 'multiplication', max: 10, today });
-    // 7x8 (box 0, due) first; 6x9 (box 2, due) next; 5x5 (weak but not due) after due ones.
+    // Due facts first, ascending box: 7x8 (box 0), 6x9 (box 2), 4x4 (box 4);
+    // then 5x5 (weak but not due).
     expect(targets[0]).toBe('7x8');
     expect(targets[1]).toBe('6x9');
-    // 4x4 (box 4) excluded entirely (not weak)
-    expect(targets).not.toContain('4x4');
+    expect(targets[2]).toBe('4x4');
+    // 4x4 (box 4) is NOT weak but IS due, so it must be targeted — otherwise the
+    // Review callout would advertise it forever without ever practicing it.
+    expect(targets).toContain('4x4');
+    // weak-but-not-due comes after all due facts
+    expect(targets.indexOf('5x5')).toBeGreaterThan(targets.indexOf('4x4'));
     // addition fact excluded by operation filter
     expect(targets).not.toContain('3+9');
   });

@@ -72,6 +72,14 @@ describe('generateExercises — shared structure', () => {
     }
   });
 
+  it('stamps the operation on every exercise (needed by Show-Me-How + fact review outside a lesson)', () => {
+    for (const op of ['addition', 'subtraction', 'multiplication', 'division']) {
+      for (const ex of generateExercises(op, '8-10', 3, 12)) {
+        expect(ex.operation).toBe(op);
+      }
+    }
+  });
+
   it('exercise types are drawn from the valid types', () => {
     const validTypes = new Set([
       'type-answer',
