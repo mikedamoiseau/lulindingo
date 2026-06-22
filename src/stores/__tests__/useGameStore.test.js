@@ -3,6 +3,7 @@ import 'fake-indexeddb/auto';
 import { db } from '../../db/database';
 import useGameStore, { getDueFactCount } from '../useGameStore';
 import { getLocalDateString } from '../../utils/streakTracker';
+import { createDefaultLayout, acornBalance } from '../../utils/denEconomy';
 
 function getStore() {
   return useGameStore.getState();
@@ -755,5 +756,119 @@ describe('streakHistory time-of-day', () => {
     expect(today.timeOfDay.morning).toBe(1);
     expect(today.timeOfDay.afternoon).toBe(0);
     vi.useRealTimers();
+  });
+});
+
+describe("Dingo's Den economy", () => {
+  it('createUser seeds spentAcorns 0 and the default den layout', async () => {
+    await getStore().createUser('Denner', '8-10');
+    const { user } = getStore();
+    expect(user.spentAcorns).toBe(0);
+    expect(user.denLayout).toEqual(createDefaultLayout());
+    // persisted, not just in store
+    const persisted = (await db.users.toArray())[0];
+    expect(persisted.spentAcorns).toBe(0);
+    expect(persisted.denLayout.slots.sky).toBe('sky-day');
+  });
+
+  it('buyAndEquip charges an affordable item, equips it, and persists', async () => {
+    await getStore().createUser('Buyer', '8-10');
+    await getStore().addXp(300);
+    const res = await getStore().buyAndEquip('hat-party'); // cost 100
+    expect(res.ok).toBe(true);
+    const { user } = getStore();
+    expect(user.spentAcorns).toBe(100);
+    expect(user.totalXp).toBe(300); // XP never decremented
+    expect(user.denLayout.owned).toContain('hat-party');
+    expect(user.denLayout.cosmetics.hat).toBe('hat-party');
+    expect(acornBalance(user.totalXp, user.spentAcorns)).toBe(200);
+    const persisted = (await db.users.toArray())[0];
+    expect(persisted.spentAcorns).toBe(100);
+    expect(persisted.denLayout.cosmetics.hat).toBe('hat-party');
+  });
+
+  it('two rapid buys of different items both land (no lost purchase / undercount)', async () => {
+    await getStore().createUser('FastTapper', '8-10');
+    await getStore().addXp(300);
+    // Fire two purchases for different slots near-simultaneously.
+    const [a, b] = await Promise.all([
+      getStore().buyAndEquip('plants-grass'), // cost 30, plants slot
+      getStore().buyAndEquip('weather-cloud'), // cost 40, weather slot
+    ]);
+    expect(a.ok).toBe(true);
+    expect(b.ok).toBe(true);
+    const { user } = getStore();
+    // Both charged: 30 + 40 = 70, not just one.
+    expect(user.spentAcorns).toBe(70);
+    expect(user.denLayout.owned).toEqual(expect.arrayContaining(['plants-grass', 'weather-cloud']));
+    expect(user.denLayout.slots.plants).toBe('plants-grass');
+    expect(user.denLayout.slots.weather).toBe('weather-cloud');
+    const persisted = (await db.users.toArray())[0];
+    expect(persisted.spentAcorns).toBe(70);
+  });
+
+  it('buyAndEquip on an unaffordable item is a no-op (no negative balance)', async () => {
+    await getStore().createUser('Broke', '8-10');
+    await getStore().addXp(50);
+    const res = await getStore().buyAndEquip('hat-crown'); // cost 200
+    expect(res.ok).toBe(false);
+    const { user } = getStore();
+    expect(user.spentAcorns).toBe(0);
+    expect(user.denLayout.cosmetics.hat).toBeNull();
+    expect(acornBalance(user.totalXp, user.spentAcorns)).toBe(50);
+  });
+
+  it('re-buying an owned item never double-charges', async () => {
+    await getStore().createUser('Repeat', '8-10');
+    await getStore().addXp(300);
+    await getStore().buyAndEquip('hat-party'); // 100
+    await getStore().clearSlot('hat');
+    await getStore().buyAndEquip('hat-party'); // owned → free re-equip
+    const { user } = getStore();
+    expect(user.spentAcorns).toBe(100);
+    expect(user.denLayout.cosmetics.hat).toBe('hat-party');
+  });
+
+  it('equip swaps owned items without touching spentAcorns', async () => {
+    await getStore().createUser('Equipper', '8-10');
+    await getStore().addXp(300);
+    await getStore().buyAndEquip('pond-small'); // 70
+    await getStore().clearSlot('pond');
+    expect(getStore().user.denLayout.slots.pond).toBeNull();
+    const res = await getStore().equip('pond-small');
+    expect(res.ok).toBe(true);
+    const { user } = getStore();
+    expect(user.denLayout.slots.pond).toBe('pond-small');
+    expect(user.spentAcorns).toBe(70); // unchanged
+  });
+
+  it('clearSlot persists and never touches spentAcorns', async () => {
+    await getStore().createUser('Clearer', '8-10');
+    await getStore().clearSlot('sky');
+    const { user } = getStore();
+    expect(user.denLayout.slots.sky).toBeNull();
+    expect(user.spentAcorns).toBe(0);
+    const persisted = (await db.users.toArray())[0];
+    expect(persisted.denLayout.slots.sky).toBeNull();
+  });
+
+  it('loadUser backfills missing den fields on a pre-den (v1-style) user row', async () => {
+    await db.users.add({
+      name: 'Legacy',
+      totalXp: 100,
+      hearts: 10,
+      heartsLastRefill: new Date(),
+      currentStreak: 0,
+      longestStreak: 0,
+      lastActiveDate: null,
+      ageBand: '8-10',
+      createdAt: new Date(),
+      // no spentAcorns, no denLayout
+    });
+    await getStore().loadUser();
+    const { user } = getStore();
+    expect(user.spentAcorns).toBe(0);
+    expect(user.denLayout).toBeTruthy();
+    expect(user.denLayout.slots.sky).toBe('sky-day');
   });
 });

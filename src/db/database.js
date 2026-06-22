@@ -1,4 +1,5 @@
 import Dexie from 'dexie';
+import { createDefaultLayout } from '../utils/denEconomy';
 
 export const db = new Dexie('LuLinDingo');
 
@@ -51,4 +52,24 @@ db.version(4).stores({
   streakHistory: 'date',
   dailyQuests: 'date',
   facts: 'sig, operation, box, dueAt',
+});
+
+// v5: Dingo's Den. Two index-free fields on the user row — `spentAcorns` (a
+// monotonic counter; the spendable acorn balance is recomputed as
+// totalXp - spentAcorns, never stored) and `denLayout` (owned items + equipped
+// slot/cosmetic map). Cumulative declaration — restates all v4 tables. We backfill
+// defaults so existing single-user rows read predictable values instead of undefined.
+db.version(5).stores({
+  users: '++id, name',
+  units: 'id, moduleId, topic, order',
+  lessons: 'id, unitId, order',
+  progress: 'lessonId, completed',
+  streakHistory: 'date',
+  dailyQuests: 'date',
+  facts: 'sig, operation, box, dueAt',
+}).upgrade(async (tx) => {
+  await tx.table('users').toCollection().modify((user) => {
+    if (user.spentAcorns == null) user.spentAcorns = 0;
+    if (user.denLayout == null) user.denLayout = createDefaultLayout();
+  });
 });

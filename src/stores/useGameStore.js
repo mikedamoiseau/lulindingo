@@ -6,6 +6,13 @@ import { getSkippedLessonIds, getPlacementSkippedLessonIds, getFirstActiveUnitId
 import { selectDailyQuests, allQuestsDone, QUEST_CATALOG } from '../utils/dailyQuests';
 import { signatureForExercise, applyOutcome, isDue } from '../utils/factTracking';
 import { bucketHour } from '../utils/insights';
+import {
+  createDefaultLayout,
+  migrateLayout,
+  purchaseItem,
+  equipItem,
+  clearSlot as clearSlotLayout,
+} from '../utils/denEconomy';
 
 /**
  * Count facts due on or before today. Pure selector used by the home path
@@ -40,6 +47,13 @@ const useGameStore = create((set, get) => ({
         updates.heartsLastRefill = refillResult.heartsLastRefill;
       }
       if (currentStreak !== user.currentStreak) updates.currentStreak = currentStreak;
+      // Den fields: backfill for any pre-den row, then reconcile the saved layout
+      // against the current catalog (drops removed ids, re-adds free starters).
+      if (user.spentAcorns == null) updates.spentAcorns = 0;
+      const reconciled = migrateLayout(user.denLayout);
+      if (JSON.stringify(reconciled) !== JSON.stringify(user.denLayout)) {
+        updates.denLayout = reconciled;
+      }
       if (Object.keys(updates).length > 0) {
         await db.users.update(user.id, updates);
       }
@@ -66,6 +80,8 @@ const useGameStore = create((set, get) => ({
       readAloud: false,
       speechRate: 1.0,
       speechVoiceURI: null,
+      spentAcorns: 0,
+      denLayout: createDefaultLayout(),
       createdAt: new Date(),
     });
     const user = await db.users.get(id);
@@ -133,6 +149,56 @@ const useGameStore = create((set, get) => ({
     const totalXp = user.totalXp + amount;
     await db.users.update(user.id, { totalXp });
     set({ user: { ...user, totalXp } });
+  },
+
+  // --- Dingo's Den -----------------------------------------------------------
+  // All economy rules live in the pure denEconomy reducers; these actions just
+  // run a reducer, write the result through to Dexie, and mirror it into store
+  // state (same write-through pattern as addXp/loseHeart). spentAcorns only ever
+  // increases; totalXp is never touched, so progression stays intact.
+
+  // Buy (if needed) then equip an item. Owned items re-equip for free; unowned
+  // affordable items are charged once; unaffordable/unknown items no-op.
+  buyAndEquip: async (itemId) => {
+    const { user } = get();
+    if (!user) return { ok: false };
+    const layout = user.denLayout || createDefaultLayout();
+    const res = purchaseItem(itemId, user.totalXp, user.spentAcorns ?? 0, layout);
+    if (!res.ok) return res;
+    // Commit to store state SYNCHRONOUSLY before the async DB write. The read
+    // (get().user) and this set() have no await between them, so a rapid second
+    // tap on a different item reads the updated balance/layout and stacks its
+    // purchase instead of overwriting the first (no lost purchase / undercount).
+    set({ user: { ...user, spentAcorns: res.spentAcorns, denLayout: res.layout } });
+    await db.users.update(user.id, {
+      spentAcorns: res.spentAcorns,
+      denLayout: res.layout,
+    });
+    return res;
+  },
+
+  // Equip an already-owned item (free swap). Never touches spentAcorns.
+  equip: async (itemId) => {
+    const { user } = get();
+    if (!user) return { ok: false };
+    const layout = user.denLayout || createDefaultLayout();
+    const res = equipItem(itemId, layout);
+    if (!res.ok) return res;
+    // Sync set before async write (see buyAndEquip) so rapid equips don't race.
+    set({ user: { ...user, denLayout: res.layout } });
+    await db.users.update(user.id, { denLayout: res.layout });
+    return res;
+  },
+
+  // Clear a slot or cosmetic (free). Never touches spentAcorns.
+  clearSlot: async (slot) => {
+    const { user } = get();
+    if (!user) return;
+    const layout = user.denLayout || createDefaultLayout();
+    const nextLayout = clearSlotLayout(slot, layout);
+    // Sync set before async write (see buyAndEquip) so rapid actions don't race.
+    set({ user: { ...user, denLayout: nextLayout } });
+    await db.users.update(user.id, { denLayout: nextLayout });
   },
 
   ensureTodayQuests: async () => {
