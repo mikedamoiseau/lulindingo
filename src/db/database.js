@@ -26,3 +26,15 @@ db.version(2).stores({
     if (user.speechVoiceURI === undefined) user.speechVoiceURI = null;
   });
 });
+
+// v3: daily quests. New table keyed by local date string ("YYYY-MM-DD").
+// Cumulative declaration — restates all v2 tables plus the new dailyQuests
+// table. Rows are created lazily, so no data migration is required.
+db.version(3).stores({
+  users: '++id, name',
+  units: 'id, moduleId, topic, order',
+  lessons: 'id, unitId, order',
+  progress: 'lessonId, completed',
+  streakHistory: 'date',
+  dailyQuests: 'date',
+});

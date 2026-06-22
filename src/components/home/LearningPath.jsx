@@ -4,6 +4,7 @@ import useGameStore from '../../stores/useGameStore';
 import { getUnitStates, getLessonStatus } from '../../utils/progression';
 import UnitHeader from './UnitHeader';
 import LessonNode from './LessonNode';
+import QuestBoard from './QuestBoard';
 import HeartDisplay from '../shared/HeartDisplay';
 import Mascot from '../shared/Mascot';
 import styles from './LearningPath.module.css';
@@ -55,6 +56,8 @@ export default function LearningPath() {
           </button>
         </div>
       </header>
+
+      <QuestBoard />
 
       {/* Completed units — collapsed badges */}
       {unitData.slice(0, Math.max(0, currentIndex)).map(({ unit }) => (
