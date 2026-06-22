@@ -45,7 +45,9 @@ export function makeBuckets(answer, rng = Math.random) {
   let granularity = granularityFor(answer);
   // Defensive: if magnitude is so small that granularity swallows the answer
   // (only possible when D2 eligibility is bypassed), fall back to step 10.
-  if (granularity >= answer && answer > 0) granularity = 10;
+  // Strict '>' so an answer that sits exactly on a power-of-ten boundary
+  // (e.g. 1000) keeps its order-of-magnitude step instead of collapsing to 10.
+  if (granularity > answer && answer > 0) granularity = 10;
 
   const trueBucket = Math.round(answer / granularity) * granularity;
 
@@ -116,5 +118,9 @@ export function buildEstimationExercise(ex, variant, rng = Math.random) {
     const { buckets, correctBucket, granularity } = makeBuckets(ex.correctAnswer, rng);
     return { ...base, buckets, correctBucket, granularity };
   }
-  return base;
+  // Typed variant: still carry the rounded "about N" value so miss feedback
+  // can say "It was about <correctBucket>" instead of "about undefined".
+  const granularity = granularityFor(ex.correctAnswer);
+  const correctBucket = Math.round(ex.correctAnswer / granularity) * granularity;
+  return { ...base, correctBucket, granularity };
 }

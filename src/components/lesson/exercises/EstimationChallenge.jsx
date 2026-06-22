@@ -29,7 +29,9 @@ export default function EstimationChallenge({ exercise, onAnswer, speechRate = 1
     if (selected !== null) onAnswer({ kind: 'bucket', value: selected });
   };
   const handleCheckType = () => {
-    if (value !== '') onAnswer({ kind: 'type', value: parseFloat(value) });
+    const parsed = parseFloat(value);
+    // Ignore non-numeric input (e.g. a lone "."): parseFloat would be NaN.
+    if (Number.isFinite(parsed)) onAnswer({ kind: 'type', value: parsed });
   };
 
   return (

@@ -102,4 +102,23 @@ describe('buildEstimationExercise', () => {
     expect(est.estimationMode).toBe('type');
     expect(est.buckets).toBeUndefined();
   });
+
+  it('type variant still carries a rounded correctBucket for miss feedback', () => {
+    const est = buildEstimationExercise(source, 'type');
+    // 828 rounds to the nearest 100 → 800; never undefined.
+    expect(est.correctBucket).toBe(800);
+    expect(Number.isFinite(est.correctBucket)).toBe(true);
+  });
+});
+
+describe('makeBuckets boundary (power-of-ten answer)', () => {
+  it('does not collapse granularity when answer equals its magnitude step', () => {
+    // 1000 sits on the boundary; granularity should stay 1000, not collapse to 10.
+    const { granularity, correctBucket, buckets } = makeBuckets(1000);
+    expect(granularity).toBe(1_000);
+    expect(correctBucket).toBe(1_000);
+    // Buckets spread by the order-of-magnitude step, not by 10.
+    expect(buckets).toContain(1_000);
+    expect(buckets.some((b) => b !== 1_000 && Math.abs(b - 1_000) >= 1_000)).toBe(true);
+  });
 });
