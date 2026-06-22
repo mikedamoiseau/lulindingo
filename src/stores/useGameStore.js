@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { db } from '../db/database';
+import { getActiveUserId, setActiveUserId, clearActiveUserId } from '../db/profileMeta';
 import { calculateCurrentHearts, MAX_HEARTS } from '../utils/heartManager';
 import { getLocalDateString, calculateStreak } from '../utils/streakTracker';
 import { getSkippedLessonIds, getPlacementSkippedLessonIds, getFirstActiveUnitId } from '../utils/skipUnits';
@@ -24,6 +25,8 @@ export function getDueFactCount(facts, today = getLocalDateString()) {
 
 const useGameStore = create((set, get) => ({
   user: null,
+  // All children on this device, for the launch picker / avatar switcher.
+  profiles: [],
   isLoaded: false,
   lessonXp: 0,
   lessonCorrect: 0,
@@ -35,33 +38,85 @@ const useGameStore = create((set, get) => ({
   // serializes fire-and-forget fact-vault writes (read-modify-write on db.facts)
   _factWriteQueue: Promise.resolve(),
 
+  // Resolve which screen the app should show, NEVER via users[0]:
+  //  - no children            → onboarding   (user null, profiles empty)
+  //  - children, none active  → launch picker (user null, profiles populated)
+  //  - valid active child     → load it into the app
   loadUser: async () => {
+    const activeId = await getActiveUserId();
     const users = await db.users.toArray();
-    if (users.length > 0) {
-      const user = users[0];
-      const refillResult = calculateCurrentHearts(user.hearts, user.heartsLastRefill);
-      const currentStreak = calculateStreak(user.lastActiveDate, user.currentStreak);
-      const updates = {};
-      if (refillResult.hearts !== user.hearts) {
-        updates.hearts = refillResult.hearts;
-        updates.heartsLastRefill = refillResult.heartsLastRefill;
-      }
-      if (currentStreak !== user.currentStreak) updates.currentStreak = currentStreak;
-      // Den fields: backfill for any pre-den row, then reconcile the saved layout
-      // against the current catalog (drops removed ids, re-adds free starters).
-      if (user.spentAcorns == null) updates.spentAcorns = 0;
-      const reconciled = migrateLayout(user.denLayout);
-      if (JSON.stringify(reconciled) !== JSON.stringify(user.denLayout)) {
-        updates.denLayout = reconciled;
-      }
-      if (Object.keys(updates).length > 0) {
-        await db.users.update(user.id, updates);
-      }
-      set({ user: { ...user, ...updates }, isLoaded: true });
-      await get().ensureTodayQuests();
-    } else {
-      set({ isLoaded: true });
+
+    if (users.length === 0) {
+      set({ user: null, profiles: [], isLoaded: true });
+      return;
     }
+
+    const active = activeId != null ? users.find((u) => u.id === activeId) : null;
+    if (!active) {
+      // Children exist but none active (or a stale active id) → show picker.
+      set({ user: null, profiles: users, isLoaded: true });
+      return;
+    }
+
+    const refillResult = calculateCurrentHearts(active.hearts, active.heartsLastRefill);
+    const currentStreak = calculateStreak(active.lastActiveDate, active.currentStreak);
+    const updates = {};
+    if (refillResult.hearts !== active.hearts) {
+      updates.hearts = refillResult.hearts;
+      updates.heartsLastRefill = refillResult.heartsLastRefill;
+    }
+    if (currentStreak !== active.currentStreak) updates.currentStreak = currentStreak;
+    // Den fields: backfill for any pre-den row, then reconcile the saved layout
+    // against the current catalog (drops removed ids, re-adds free starters).
+    if (active.spentAcorns == null) updates.spentAcorns = 0;
+    const reconciled = migrateLayout(active.denLayout);
+    if (JSON.stringify(reconciled) !== JSON.stringify(active.denLayout)) {
+      updates.denLayout = reconciled;
+    }
+    if (Object.keys(updates).length > 0) {
+      await db.users.update(active.id, updates);
+    }
+    set({ user: { ...active, ...updates }, profiles: users, isLoaded: true });
+    await get().ensureTodayQuests();
+  },
+
+  // Refresh the profiles list (picker / switcher) without touching the active
+  // user.
+  loadProfiles: async () => {
+    const profiles = await db.users.toArray();
+    set({ profiles });
+  },
+
+  // Make `userId` the active child and re-resolve (recomputes hearts/streak).
+  switchProfile: async (userId) => {
+    await setActiveUserId(userId);
+    await get().loadUser();
+  },
+
+  // Delete a child and ALL its scoped rows across the four per-child tables.
+  // If it was the active child, clear the active pointer so loadUser falls back
+  // to the picker (or onboarding if it was the last child). Sibling data is
+  // untouched (every delete is scoped by userId).
+  deleteProfile: async (userId) => {
+    await db.transaction(
+      'rw',
+      db.users,
+      db.progress,
+      db.streakHistory,
+      db.dailyQuests,
+      db.facts,
+      db.meta,
+      async () => {
+        await db.progress.where('userId').equals(userId).delete();
+        await db.streakHistory.where('userId').equals(userId).delete();
+        await db.dailyQuests.where('userId').equals(userId).delete();
+        await db.facts.where('userId').equals(userId).delete();
+        await db.users.delete(userId);
+        const active = await getActiveUserId();
+        if (active === userId) await clearActiveUserId();
+      }
+    );
+    await get().loadUser();
   },
 
   createUser: async (name, ageBand, options = {}) => {
@@ -102,6 +157,7 @@ const useGameStore = create((set, get) => ({
     if (allSkippedIds.length > 0) {
       await db.progress.bulkPut(
         allSkippedIds.map((lessonId) => ({
+          userId: id,
           lessonId,
           completed: true,
           stars: 3,
@@ -112,7 +168,11 @@ const useGameStore = create((set, get) => ({
       );
     }
 
+    // The newly created child becomes the active profile immediately (covers
+    // both first-run onboarding and adding the Nth child from the picker).
+    await setActiveUserId(id);
     set({ user });
+    await get().loadProfiles();
     await get().ensureTodayQuests();
   },
 
@@ -205,10 +265,11 @@ const useGameStore = create((set, get) => ({
     const { user } = get();
     if (!user) return;
     const today = getLocalDateString();
-    const existing = await db.dailyQuests.get(today);
+    const existing = await db.dailyQuests.get([user.id, today]);
     if (existing) return;
     const quests = selectDailyQuests(today, user.ageBand);
     await db.dailyQuests.put({
+      userId: user.id,
       date: today,
       questIds: quests.map((q) => q.id),
       claimed: false,
@@ -233,13 +294,13 @@ const useGameStore = create((set, get) => ({
     const run = async () => {
       try {
         const today = getLocalDateString();
-        let row = await db.dailyQuests.get(today);
+        let row = await db.dailyQuests.get([user.id, today]);
         if (!row) {
           await get().ensureTodayQuests();
-          row = await db.dailyQuests.get(today);
+          row = await db.dailyQuests.get([user.id, today]);
         }
         if (!row) return;
-        await db.dailyQuests.update(today, patch(row));
+        await db.dailyQuests.update([user.id, today], patch(row));
       } catch (e) {
         // Quest progress is best-effort: swallow so one failed write can't
         // break the serialization chain or surface as an unhandled rejection.
@@ -297,12 +358,16 @@ const useGameStore = create((set, get) => ({
   // (UI reads via useLiveQuery); serialized through _factWriteQueue so rapid
   // answers to the same fact don't clobber each other (lost updates).
   recordFactOutcome: (parsed, correct) => {
+    const { user } = get();
+    if (!user) return Promise.resolve();
     const run = async () => {
       try {
         const today = getLocalDateString();
-        const existing = await db.facts.get(parsed.sig);
+        const existing = await db.facts.get([user.id, parsed.sig]);
         const next = applyOutcome(existing, correct, today, parsed);
-        await db.facts.put(next);
+        // Stamp the active child so the row lands in their isolated namespace
+        // under the [userId+sig] compound key.
+        await db.facts.put({ ...next, userId: user.id });
       } catch (e) {
         // Fact tracking is best-effort: swallow so one failed write can't break
         // the serialization chain or surface as an unhandled rejection.
@@ -338,6 +403,7 @@ const useGameStore = create((set, get) => ({
       lastActiveDate: today,
     });
     await db.streakHistory.put({
+      userId: user.id,
       date: today,
       lessonsCompleted: 0,
       xpEarned: 0,
@@ -354,9 +420,12 @@ const useGameStore = create((set, get) => ({
   },
 
   completeLesson: async (lessonId, accuracy, isPractice = false) => {
+    const { user } = get();
+    if (!user) return;
     const stars = accuracy >= 90 ? 3 : accuracy >= 70 ? 2 : 1;
-    const existing = await db.progress.get(lessonId);
+    const existing = await db.progress.get([user.id, lessonId]);
     await db.progress.put({
+      userId: user.id,
       lessonId,
       completed: true,
       stars: existing ? Math.max(existing.stars, stars) : stars,
@@ -367,7 +436,7 @@ const useGameStore = create((set, get) => ({
       completedAt: new Date(),
     });
     const today = getLocalDateString();
-    const hist = await db.streakHistory.get(today);
+    const hist = await db.streakHistory.get([user.id, today]);
     if (hist) {
       // Bucket the current hour into morning/afternoon/evening so the Grown-Up
       // Corner activity card has real data. Spread defends pre-upgrade rows that
@@ -375,7 +444,7 @@ const useGameStore = create((set, get) => ({
       const bucket = bucketHour(new Date().getHours());
       const timeOfDay = { morning: 0, afternoon: 0, evening: 0, ...(hist.timeOfDay || {}) };
       timeOfDay[bucket] += 1;
-      await db.streakHistory.update(today, {
+      await db.streakHistory.update([user.id, today], {
         lessonsCompleted: hist.lessonsCompleted + 1,
         xpEarned: hist.xpEarned + get().lessonXp,
         timeOfDay,
@@ -400,14 +469,14 @@ const useGameStore = create((set, get) => ({
     // double-tap (two concurrent calls) can't both read claimed=false and
     // each grant a reward. Only the call that flips false->true proceeds.
     const outcome = await db.transaction('rw', db.dailyQuests, async () => {
-      const row = await db.dailyQuests.get(today);
+      const row = await db.dailyQuests.get([user.id, today]);
       if (!row) return 'none';
       if (row.claimed) return 'already';
       const quests = row.questIds
         .map((id) => QUEST_CATALOG.find((q) => q.id === id))
         .filter(Boolean);
       if (!allQuestsDone(quests, row)) return 'incomplete';
-      await db.dailyQuests.update(today, { claimed: true });
+      await db.dailyQuests.update([user.id, today], { claimed: true });
       return 'won';
     });
 
@@ -429,12 +498,14 @@ const useGameStore = create((set, get) => ({
     await db.users.update(user.id, settings);
 
     if (settings.ageBand) {
-      await db.progress.clear();
+      // Reset ONLY the active child's progress — siblings must be untouched.
+      await db.progress.where('userId').equals(user.id).delete();
       const allLessons = await db.lessons.toArray();
       const skippedIds = getSkippedLessonIds(settings.ageBand, allLessons);
       if (skippedIds.length > 0) {
         await db.progress.bulkPut(
           skippedIds.map((lessonId) => ({
+            userId: user.id,
             lessonId,
             completed: true,
             stars: 3,
