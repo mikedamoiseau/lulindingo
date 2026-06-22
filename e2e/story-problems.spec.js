@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { onboard } from './helpers.js';
+import { onboard, solveExercise, computeFromText, typeNumber } from './helpers.js';
 
 /**
  * Story Problems end-to-end.
@@ -12,66 +12,21 @@ import { onboard } from './helpers.js';
  * confirm the lesson advances (a feedback banner appears).
  */
 
-const evalExpr = (a, op, b) => {
-  switch (op) {
-    case '+': return a + b;
-    case '-': return a - b;
-    case '×': return a * b;
-    case '÷': return a / b;
-    default: throw new Error(`Unknown operator: ${op}`);
-  }
-};
-
-/** Pull "A op B" out of arbitrary text and compute the answer. */
-function computeFromText(text) {
-  const m = text.match(/(\d+)\s*([+\-×÷])\s*(\d+)/);
-  if (!m) throw new Error(`No expression found in: ${JSON.stringify(text)}`);
-  return evalExpr(parseInt(m[1], 10), m[2], parseInt(m[3], 10));
-}
-
-/** Type a number via the on-screen number pad, then CHECK. */
-async function typeNumber(page, n) {
-  for (const ch of String(n)) {
-    await page.getByRole('button', { name: ch, exact: true }).click();
-  }
-  await page.getByRole('button', { name: 'CHECK' }).click();
-}
-
 /**
- * Solve one normal exercise (type/select/follow). Returns the type solved, or
- * 'story' if the current exercise is a story problem (left for the caller to
- * handle), or false if no exercise is on screen.
+ * Detect a story problem without solving it (so the test can assert its
+ * narrative), otherwise delegate to the shared solver (which handles every
+ * other type, including the equation-puzzle types). Returns 'story' when the
+ * current exercise is a story problem, or whatever the shared solver returns.
  */
 async function solveOneOrDetectStory(page) {
   const area = page.locator('[class*="exerciseArea"]');
   await page.waitForTimeout(350); // let the slide transition settle
 
-  // Story problem: the hidden equation testid is present.
-  const storyEq = area.getByTestId('story-equation');
-  if (await storyEq.count()) return 'story';
+  // Story problem: the hidden equation testid is present — leave it for the
+  // caller to assert + answer.
+  if (await area.getByTestId('story-equation').count()) return 'story';
 
-  const checkBtn = page.getByRole('button', { name: 'CHECK' });
-  const blankCell = area.locator('[class*="blankCell"]');
-  const eq = area.locator('[class*="equation"]').first();
-
-  let answer;
-  if (await blankCell.count()) {
-    const row = blankCell.first().locator('xpath=..');
-    answer = computeFromText(await row.innerText());
-  } else if (await eq.count()) {
-    answer = computeFromText(await eq.innerText());
-  } else {
-    return false;
-  }
-
-  const optionBtn = area.getByRole('button', { name: String(answer), exact: true });
-  if (await optionBtn.count()) {
-    await optionBtn.first().click();
-    await checkBtn.click();
-    return 'option';
-  }
-  await typeNumber(page, answer);
-  return 'typed';
+  return solveExercise(page);
 }
 
 /** Tap CONTINUE on the feedback banner (and redo on an unexpected RETRY). */

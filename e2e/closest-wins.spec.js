@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { onboard } from './helpers.js';
+import { onboard, solveExercise } from './helpers.js';
 
 /**
  * Closest Wins (estimation challenge) end-to-end.
@@ -16,84 +16,8 @@ import { onboard } from './helpers.js';
  * until a tier-4 lesson unlocks and is completed, then take its estimation entry.
  */
 
-const evalExpr = (a, op, b) => {
-  switch (op) {
-    case '+': return a + b;
-    case '-': return a - b;
-    case '×': return a * b;
-    case '÷': return a / b;
-    default: throw new Error(`Unknown operator: ${op}`);
-  }
-};
-
-/** Pull "A op B" out of arbitrary on-screen text and compute the answer. */
-function computeFromText(text) {
-  // Normalise the blank/equation tail so it doesn't swallow digits.
-  const m = text.match(/(\d+)\s*([+\-×÷])\s*(\d+)/);
-  if (!m) throw new Error(`No expression found in: ${JSON.stringify(text)}`);
-  const a = parseInt(m[1], 10);
-  const op = m[2];
-  const b = parseInt(m[3], 10);
-  return evalExpr(a, op, b);
-}
-
-/** Type a number via the on-screen number pad, then CHECK. */
-async function typeNumber(page, n) {
-  for (const ch of String(n)) {
-    await page.getByRole('button', { name: ch, exact: true }).click();
-  }
-  await page.getByRole('button', { name: 'CHECK' }).click();
-}
-
-/**
- * Solve one exercise of any of the three normal types.
- * Returns false if no exercise is on screen (lesson finished / summary shown).
- */
-async function solveExercise(page) {
-  const area = page.locator('[class*="exerciseArea"]');
-  // Let the framer-motion slide transition (0.2s) settle so the number pad /
-  // option buttons aren't detached mid-click.
-  await page.waitForTimeout(350);
-  const checkBtn = page.getByRole('button', { name: 'CHECK' });
-
-  // story-problem: the narrative hides the bare equation, which is exposed via a
-  // visually-hidden element for assistive tech (and us). Read it, compute, type.
-  const storyEq = area.getByTestId('story-equation');
-  if (await storyEq.count()) {
-    const answer = computeFromText(await storyEq.innerText());
-    await typeNumber(page, answer);
-    return true;
-  }
-
-  // follow-pattern: a table whose blank row shows "???". The question is that
-  // row's expression cell — NOT the first expression in the area text.
-  const blankCell = area.locator('[class*="blankCell"]');
-  const eq = area.locator('[class*="equation"]').first();
-
-  let answer;
-  if (await blankCell.count()) {
-    const row = blankCell.first().locator('xpath=..');
-    answer = computeFromText(await row.innerText());
-  } else if (await eq.count()) {
-    // type-answer / select-answer: the .equation element holds "A op B = []".
-    answer = computeFromText(await eq.innerText());
-  } else {
-    // No exercise present — the lesson is over.
-    return false;
-  }
-
-  // If an option button matches the answer, this is select/follow → click it.
-  const optionBtn = area.getByRole('button', { name: String(answer), exact: true });
-  if (await optionBtn.count()) {
-    await optionBtn.first().click();
-    await checkBtn.click();
-    return true;
-  }
-
-  // Otherwise it's a typed answer (number pad present).
-  await typeNumber(page, answer);
-  return true;
-}
+// solveExercise (handles all six exercise types, including the equation-puzzle
+// types) lives in helpers.js so every spec stays in sync as new types land.
 
 /** Drive the open lesson to its summary screen ("Lesson Complete!"). */
 async function completeLesson(page) {
