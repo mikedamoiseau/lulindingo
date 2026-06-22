@@ -25,7 +25,42 @@ const AGE_BAND_MAX = {
   '11-12': 1_000_000,
 };
 
-const EXERCISE_TYPES = ['type-answer', 'select-answer', 'follow-pattern', 'story-problem'];
+// Cycle of exercise interaction types. The two equation-puzzle types
+// (missing-number, build-equation) are appended/interleaved so earlier
+// positions (type-answer/select-answer/follow-pattern/story-problem) stay
+// stable. Length 6 — every position is reachable in a normal lesson.
+const EXERCISE_TYPES = [
+  'type-answer',
+  'select-answer',
+  'missing-number',
+  'follow-pattern',
+  'story-problem',
+  'build-equation',
+];
+
+const OP_SYMBOL = { addition: '+', subtraction: '-', multiplication: '×', division: '÷' };
+
+// Legal blank slots per operation for Find-the-Missing-Number.
+// Division → dividend ('a') only: blanking the divisor is not exactly
+// recoverable for the challenger decimal path, so we forbid it everywhere
+// to keep one simple rule.
+const MISSING_SLOTS = {
+  addition: ['a', 'b'],
+  subtraction: ['a', 'b'],
+  multiplication: ['a', 'b'],
+  division: ['a'],
+};
+
+/** Apply a binary operator the same way the rest of the codebase does (2dp on ÷). */
+function applyOp(operator, a, b) {
+  switch (operator) {
+    case '+': return a + b;
+    case '-': return a - b;
+    case '×': return a * b;
+    case '÷': return parseFloat((a / b).toFixed(2));
+    default: throw new Error(`Unknown operator: ${operator}`);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Seeded-random helpers (plain Math.random — deterministic only in tests via vi.mock)
@@ -258,6 +293,184 @@ function buildDivisionExercise(exType, ageBand, tier, variant) {
 }
 
 // ---------------------------------------------------------------------------
+// Raw triple producer (shared by the equation-puzzle types)
+// ---------------------------------------------------------------------------
+
+/**
+ * Produce a raw {a, b, operator, result} triple using the SAME ranges/guards
+ * as the per-operation builders above, so difficulty scaling is identical.
+ *
+ * Returns `null` for combinations the equation-puzzle types can't safely use
+ * (challenger decimal division has no clean draggable operands and no exactly
+ * recoverable blank), so callers can fall back to a forward exercise.
+ *
+ * `clean` is true when both operands are integers and `result` is exact —
+ * required for build-equation tiles.
+ */
+function makeTriple(operation, ageBand, tier) {
+  switch (operation) {
+    case 'addition': {
+      const rangeMax = AGE_BAND_MAX[ageBand] ?? AGE_BAND_MAX['11-12'];
+      const [lo, hi] = tierWindow(rangeMax, tier);
+      const sum = randInt(lo, hi);
+      const a = randInt(0, sum);
+      const b = sum - a;
+      return { a, b, operator: '+', result: sum, clean: true };
+    }
+    case 'subtraction': {
+      const rangeMax = AGE_BAND_MAX[ageBand] ?? AGE_BAND_MAX['11-12'];
+      const [lo, hi] = tierWindow(rangeMax, tier);
+      const a = randInt(lo, hi);
+      const b = randInt(0, a);
+      return { a, b, operator: '-', result: a - b, clean: true };
+    }
+    case 'multiplication': {
+      const factorMax = ageBand === '11-12' ? 1000 : 50;
+      const [lo, hi] = tierWindow(factorMax, tier);
+      const a = randInt(Math.max(1, lo), hi);
+      const b = randInt(Math.max(1, lo), hi);
+      return { a, b, operator: '×', result: a * b, clean: true };
+    }
+    case 'division': {
+      if (ageBand === '11-12') {
+        // Challenger decimal division — no clean operands / non-recoverable
+        // blank. Signal "unsafe" so the puzzle types fall back.
+        return null;
+      }
+      // Explorer: construct dividend = b * result so division is exact.
+      const factorMax = 50;
+      const [lo, hi] = tierWindow(factorMax, tier);
+      const b = randInt(Math.max(1, lo), hi);
+      const result = randInt(Math.max(1, lo), hi);
+      const dividend = b * result;
+      return { a: dividend, b, operator: '÷', result, clean: true };
+    }
+    default:
+      throw new Error(`Unknown operation: ${operation}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Find-the-Missing-Number
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a Find-the-Missing-Number exercise: the blank moves onto an operand,
+ * the result is shown, and `correctAnswer` is the missing operand.
+ * Returns `null` for unsafe combos (challenger division) so the caller falls back.
+ */
+function buildMissingNumberExercise(operation, ageBand, tier) {
+  const t = makeTriple(operation, ageBand, tier);
+  if (!t) return null;
+
+  const legal = MISSING_SLOTS[operation];
+  let blankSlot = legal[randInt(0, legal.length - 1)];
+
+  // Guard against blanking a slot whose known operand is 0 for × (avoids /0
+  // recovery ambiguity). Multiplication operands are ≥ 1 in practice, so this
+  // is belt-and-suspenders.
+  if (operation === 'multiplication') {
+    if (blankSlot === 'a' && t.b === 0) blankSlot = 'b';
+    else if (blankSlot === 'b' && t.a === 0) blankSlot = 'a';
+  }
+
+  const correctAnswer = blankSlot === 'a' ? t.a : t.b;
+  const aStr = blankSlot === 'a' ? '[]' : String(t.a);
+  const bStr = blankSlot === 'b' ? '[]' : String(t.b);
+  const equation = `${aStr} ${t.operator} ${bStr} = ${t.result}`;
+  return { type: 'missing-number', equation, correctAnswer, blankSlot, ...t };
+}
+
+// ---------------------------------------------------------------------------
+// Build-the-Equation
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a Build-the-Equation exercise: the result is shown and the child fills
+ * two operand slots from a tray of 5 tiles (2 real operands + 3 decoys).
+ * Decoys are filtered so no decoy forms an unintended second true equation.
+ * Returns `null` for unsafe combos (challenger division) so the caller falls back.
+ */
+function buildBuildEquationExercise(operation, ageBand, tier) {
+  const t = makeTriple(operation, ageBand, tier);
+  if (!t || !t.clean) return null;
+
+  const { operator, result } = t;
+  const solution = [t.a, t.b];
+  const commutative = operator === '+' || operator === '×';
+
+  // A candidate tile forms an unintended solution if, paired (in either order
+  // for commutative ops) with the solution operands or another accepted tile,
+  // it yields the result — other than the intended solution (and its swap).
+  const isTruePair = (x, y) => Math.abs(applyOp(operator, x, y) - result) < 0.005;
+  const solKeys = new Set([
+    `${solution[0]},${solution[1]}`,
+    ...(commutative ? [`${solution[1]},${solution[0]}`] : []),
+  ]);
+
+  // Would adding `cand` to the existing accepted tiles create any true pair
+  // (ordered, both directions for commutative) that is NOT the intended solution?
+  const createsSecondSolution = (cand, accepted) => {
+    const tiles = [...solution, ...accepted, cand];
+    for (const x of tiles) {
+      for (const y of tiles) {
+        if (x === cand || y === cand) {
+          // pairs involving the candidate (and we also re-check existing below)
+        }
+        if (!isTruePair(x, y)) continue;
+        if (!solKeys.has(`${x},${y}`)) return true;
+      }
+    }
+    return false;
+  };
+
+  // Gather candidate decoys from distractors of each operand and the result.
+  const pool = [
+    ...generateDistractors(t.a, 4),
+    ...generateDistractors(t.b, 4),
+    ...generateDistractors(result, 4),
+  ];
+
+  const decoys = [];
+  let poolIdx = 0;
+  while (decoys.length < 3 && poolIdx < pool.length) {
+    const cand = pool[poolIdx++];
+    if (cand < 0) continue;
+    if (cand === solution[0] || cand === solution[1]) continue;
+    if (decoys.includes(cand)) continue;
+    if (createsSecondSolution(cand, decoys)) continue;
+    decoys.push(cand);
+  }
+
+  // Padding fallback: bounded far-away integers that pass the no-second-solution filter.
+  let pad = 1;
+  let attempts = 0;
+  while (decoys.length < 3 && attempts < 500) {
+    attempts++;
+    const cand = result + pad;
+    pad++;
+    if (cand < 0) continue;
+    if (cand === solution[0] || cand === solution[1]) continue;
+    if (decoys.includes(cand)) continue;
+    if (createsSecondSolution(cand, decoys)) continue;
+    decoys.push(cand);
+  }
+
+  // Last resort (tiny ranges): if still short, accept distinct values even if
+  // far — they cannot form result with result+pad spacing in practice.
+  while (decoys.length < 3) {
+    const cand = result + pad;
+    pad++;
+    if (cand >= 0 && !decoys.includes(cand) && cand !== solution[0] && cand !== solution[1]) {
+      decoys.push(cand);
+    }
+  }
+
+  const tray = shuffle([...solution, ...decoys]);
+  return { type: 'build-equation', operator, result, slots: 2, solution, tray, correctAnswer: result };
+}
+
+// ---------------------------------------------------------------------------
 // Route exercise type
 // ---------------------------------------------------------------------------
 
@@ -418,7 +631,27 @@ export function generateExercises(operation, ageBand, tier, count, options = {})
       exType = 'type-answer';
     }
 
+    // Remainder variant has no equation-puzzle representation in v1 — fall the
+    // new types back to a forward typed answer so the variant stays type+story.
+    if (variant === 'remainder' && (exType === 'missing-number' || exType === 'build-equation')) {
+      exType = 'type-answer';
+    }
+
     let exercise;
+
+    if (exType === 'missing-number') {
+      exercise = buildMissingNumberExercise(operation, ageBand, tier);
+      // Silent fallback to a forward typed answer when the combo is unsafe.
+      if (!exercise) exType = 'type-answer';
+    } else if (exType === 'build-equation') {
+      exercise = buildBuildEquationExercise(operation, ageBand, tier);
+      if (!exercise) exType = 'type-answer';
+    }
+
+    if (exercise) {
+      exercises.push(exercise);
+      continue;
+    }
 
     if (exType === 'follow-pattern') {
       // Follow-pattern uses dedicated builders per operation
