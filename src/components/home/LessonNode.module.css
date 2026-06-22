@@ -61,6 +61,18 @@
   border: 2px solid var(--blue);
 }
 
+.estimateBtn {
+  margin-top: var(--space-sm);
+  background: var(--orange);
+  color: var(--bg);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
 .toast {
   position: absolute;
   top: calc(100% + 8px);
