@@ -4,6 +4,15 @@ import { calculateCurrentHearts, MAX_HEARTS } from '../utils/heartManager';
 import { getLocalDateString, calculateStreak } from '../utils/streakTracker';
 import { getSkippedLessonIds, getPlacementSkippedLessonIds, getFirstActiveUnitId } from '../utils/skipUnits';
 import { selectDailyQuests, allQuestsDone, QUEST_CATALOG } from '../utils/dailyQuests';
+import { signatureForExercise, applyOutcome, isDue } from '../utils/factTracking';
+
+/**
+ * Count facts due on or before today. Pure selector used by the home path
+ * Review callout. Tolerates undefined / partial input.
+ */
+export function getDueFactCount(facts, today = getLocalDateString()) {
+  return (facts ?? []).filter((f) => isDue(f, today)).length;
+}
 
 const useGameStore = create((set, get) => ({
   user: null,
@@ -15,6 +24,8 @@ const useGameStore = create((set, get) => ({
   _currentRunCorrect: 0,
   // serializes fire-and-forget quest-stat writes to avoid lost updates
   _questWriteQueue: Promise.resolve(),
+  // serializes fire-and-forget fact-vault writes (read-modify-write on db.facts)
+  _factWriteQueue: Promise.resolve(),
 
   loadUser: async () => {
     const users = await db.users.toArray();
@@ -173,12 +184,30 @@ const useGameStore = create((set, get) => ({
     return next;
   },
 
-  recordAnswer: (correct, operation, isPractice = false) => {
+  // recordAnswer(correct, operation?, isPractice?, exercise?, opts?)
+  //  - operation/isPractice drive daily-quest accrual (practice is exempt).
+  //  - exercise (when it yields a fact signature) feeds the Fact Vault.
+  //  - opts.trackFacts (default true) lets diagnostic flows (placement test)
+  //    answer without touching the vault.
+  // The third/fourth/fifth args are optional, so legacy callers/tests that pass
+  // only (correct) or (correct, operation[, isPractice]) keep working.
+  recordAnswer: (correct, operation, isPractice = false, exercise = null, opts = {}) => {
     set((s) => ({
       lessonCorrect: s.lessonCorrect + (correct ? 1 : 0),
       lessonTotal: s.lessonTotal + 1,
       _currentRunCorrect: correct ? s._currentRunCorrect + 1 : 0,
     }));
+
+    // Fact-vault recording happens in BOTH normal and practice mode — a child
+    // reviewing weak facts must update those facts. Only the daily-quest accrual
+    // below is practice-exempt. Gated by opts.trackFacts (placement uses false).
+    if (opts.trackFacts !== false && exercise) {
+      const parsed = signatureForExercise(exercise);
+      if (parsed) {
+        get().recordFactOutcome(parsed, correct);
+      }
+    }
+
     // Practice replays must not accrue daily-quest progress (no heart cost ->
     // would let kids farm answer/streak quests).
     if (isPractice) return;
@@ -195,6 +224,27 @@ const useGameStore = create((set, get) => ({
         bestStreakInSession: Math.max(row.bestStreakInSession, run),
       };
     });
+  },
+
+  // Read-modify-write a single fact row from an answer outcome. Fire-and-forget
+  // (UI reads via useLiveQuery); serialized through _factWriteQueue so rapid
+  // answers to the same fact don't clobber each other (lost updates).
+  recordFactOutcome: (parsed, correct) => {
+    const run = async () => {
+      try {
+        const today = getLocalDateString();
+        const existing = await db.facts.get(parsed.sig);
+        const next = applyOutcome(existing, correct, today, parsed);
+        await db.facts.put(next);
+      } catch (e) {
+        // Fact tracking is best-effort: swallow so one failed write can't break
+        // the serialization chain or surface as an unhandled rejection.
+        console.error('fact-vault write failed', e);
+      }
+    };
+    const next = get()._factWriteQueue.then(run, run);
+    set({ _factWriteQueue: next });
+    return next;
   },
 
   addLessonXp: (amount) => set((s) => ({ lessonXp: s.lessonXp + amount })),

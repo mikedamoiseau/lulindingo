@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import 'fake-indexeddb/auto';
 import { db } from '../../db/database';
-import useGameStore from '../useGameStore';
+import useGameStore, { getDueFactCount } from '../useGameStore';
 import { getLocalDateString } from '../../utils/streakTracker';
 
 function getStore() {
@@ -28,6 +28,7 @@ beforeEach(async () => {
   await db.units.clear();
   await db.lessons.clear();
   await db.dailyQuests.clear();
+  await db.facts.clear();
   useGameStore.setState({
     user: null,
     isLoaded: false,
@@ -634,5 +635,96 @@ describe('daily quests', () => {
     await getStore()._questWriteQueue;
     const row = await db.dailyQuests.get(getLocalDateString());
     expect(row.answerCount).toBe(0);
+  });
+});
+
+describe('fact vault (recordAnswer threading)', () => {
+  beforeEach(async () => {
+    const { seedDatabase } = await import('../../db/seed.js');
+    await seedDatabase();
+    await getStore().createUser('FactKid', '8-10');
+  });
+
+  it('recordAnswer(true) with no exercise creates no fact row (backward compat)', async () => {
+    getStore().recordAnswer(true);
+    await getStore()._factWriteQueue;
+    const facts = await db.facts.toArray();
+    expect(facts).toHaveLength(0);
+    expect(getStore().lessonTotal).toBe(1);
+  });
+
+  it('records a fact for a type-answer exercise', async () => {
+    getStore().recordAnswer(true, 'multiplication', false, {
+      type: 'type-answer',
+      equation: '7 × 8 = []',
+      correctAnswer: 56,
+    });
+    await getStore()._factWriteQueue;
+    const fact = await db.facts.get('7x8');
+    expect(fact).toBeDefined();
+    expect(fact.box).toBe(1);
+    expect(fact.seen).toBe(1);
+    expect(fact.operation).toBe('multiplication');
+  });
+
+  it('demotes box and sets dueAt tomorrow on a subsequent wrong answer', async () => {
+    const ex = { type: 'type-answer', equation: '7 × 8 = []', correctAnswer: 56 };
+    getStore().recordAnswer(true, 'multiplication', false, ex);
+    await getStore()._factWriteQueue;
+    getStore().recordAnswer(false, 'multiplication', false, ex);
+    await getStore()._factWriteQueue;
+    const fact = await db.facts.get('7x8');
+    expect(fact.seen).toBe(2);
+    expect(fact.box).toBe(0); // 1 → max(1-2,0) = 0
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    expect(fact.dueAt).toBe(getLocalDateString(tomorrow));
+  });
+
+  it('skips follow-pattern exercises (no fact recorded)', async () => {
+    getStore().recordAnswer(true, 'multiplication', false, {
+      type: 'follow-pattern',
+      equation: '7 × 8 = []',
+      correctAnswer: 56,
+    });
+    await getStore()._factWriteQueue;
+    expect(await db.facts.toArray()).toHaveLength(0);
+  });
+
+  it('records facts in practice mode (review must update facts)', async () => {
+    getStore().recordAnswer(true, 'multiplication', true, {
+      type: 'type-answer',
+      equation: '6 × 9 = []',
+      correctAnswer: 54,
+    });
+    await getStore()._factWriteQueue;
+    expect(await db.facts.get('6x9')).toBeDefined();
+  });
+
+  it('honours trackFacts:false (placement diagnostic stays vault-free)', async () => {
+    getStore().recordAnswer(
+      true,
+      'multiplication',
+      false,
+      { type: 'type-answer', equation: '7 × 8 = []', correctAnswer: 56 },
+      { trackFacts: false }
+    );
+    await getStore()._factWriteQueue;
+    expect(await db.facts.toArray()).toHaveLength(0);
+  });
+
+  it('getDueFactCount counts rows due on or before today', async () => {
+    const today = getLocalDateString();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    await db.facts.bulkPut([
+      { sig: 'a', operation: 'addition', box: 0, dueAt: getLocalDateString(yesterday) },
+      { sig: 'b', operation: 'addition', box: 1, dueAt: today },
+      { sig: 'c', operation: 'addition', box: 2, dueAt: getLocalDateString(tomorrow) },
+    ]);
+    const facts = await db.facts.toArray();
+    expect(getDueFactCount(facts)).toBe(2);
   });
 });

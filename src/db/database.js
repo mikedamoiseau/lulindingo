@@ -38,3 +38,17 @@ db.version(3).stores({
   streakHistory: 'date',
   dailyQuests: 'date',
 });
+
+// v4: per-fact mastery vault (Fact Vault feature). New `facts` table keyed by
+// a normalized fact signature ("7x8"). Cumulative declaration — restates all
+// v3 tables plus the new facts table. Rows are created lazily on first
+// encounter of a fact, so no data migration is required.
+db.version(4).stores({
+  users: '++id, name',
+  units: 'id, moduleId, topic, order',
+  lessons: 'id, unitId, order',
+  progress: 'lessonId, completed',
+  streakHistory: 'date',
+  dailyQuests: 'date',
+  facts: 'sig, operation, box, dueAt',
+});
