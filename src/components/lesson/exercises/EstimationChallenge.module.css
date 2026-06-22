@@ -1,0 +1,129 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.instructionRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg) 0;
+}
+
+.aboutBadge {
+  background: var(--orange);
+  color: var(--bg);
+  font-weight: 800;
+  font-size: var(--text-xs);
+  letter-spacing: 1px;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-full);
+}
+
+.instruction {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.equation {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  color: var(--orange);
+}
+
+.blank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  height: 72px;
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-md);
+  border: 3px solid var(--orange);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: var(--text-3xl);
+}
+
+.options {
+  padding: 0 var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.option {
+  width: 100%;
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  text-align: center;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.option:hover {
+  border-color: var(--orange);
+}
+
+.selected {
+  border-color: var(--orange);
+  background: rgba(255, 150, 0, 0.12);
+}
+
+.inputArea {
+  padding: 0 var(--space-lg) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.inputField {
+  width: 100%;
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+}
+
+.placeholder {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.checkArea {
+  padding: var(--space-md) var(--space-lg);
+}
+
+.checkButton {
+  width: 100%;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--border);
+  color: var(--text-secondary);
+  font-size: var(--text-base);
+  font-weight: 800;
+  letter-spacing: 1px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.checkButton:not(:disabled) {
+  background: var(--orange);
+  color: var(--bg);
+}
