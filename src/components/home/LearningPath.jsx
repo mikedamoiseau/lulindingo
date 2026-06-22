@@ -1,10 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db/database';
-import useGameStore from '../../stores/useGameStore';
+import useGameStore, { getDueFactCount } from '../../stores/useGameStore';
 import { getUnitStates, getLessonStatus } from '../../utils/progression';
 import UnitHeader from './UnitHeader';
 import LessonNode from './LessonNode';
 import QuestBoard from './QuestBoard';
+import ReviewCallout from './ReviewCallout';
 import HeartDisplay from '../shared/HeartDisplay';
 import Mascot from '../shared/Mascot';
 import styles from './LearningPath.module.css';
@@ -17,6 +18,7 @@ export default function LearningPath() {
   );
   const lessons = useLiveQuery(() => db.lessons.orderBy('order').toArray(), []);
   const progress = useLiveQuery(() => db.progress.toArray(), []);
+  const facts = useLiveQuery(() => db.facts.toArray(), []);
 
   if (!units || !lessons || !progress) {
     return (
@@ -58,6 +60,8 @@ export default function LearningPath() {
       </header>
 
       <QuestBoard />
+
+      <ReviewCallout dueCount={getDueFactCount(facts ?? [])} />
 
       {/* Completed units — collapsed badges */}
       {unitData.slice(0, Math.max(0, currentIndex)).map(({ unit }) => (

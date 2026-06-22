@@ -717,5 +717,8 @@ export function generateExercises(operation, ageBand, tier, count, options = {})
     exercises.push(exercise);
   }
 
-  return exercises;
+  // Stamp the operation on every exercise so consumers (e.g. the Show-Me-How
+  // strategy builder, fact recording) work even outside a lesson context —
+  // notably the fact Review route, where no `lesson` row carries the operation.
+  return exercises.map((ex) => (ex && ex.operation === undefined ? { ...ex, operation } : ex));
 }
