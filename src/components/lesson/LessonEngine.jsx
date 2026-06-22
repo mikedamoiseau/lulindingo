@@ -7,6 +7,8 @@ import useGameStore from '../../stores/useGameStore';
 import { calculateXp, getLessonBonus } from '../../utils/xpCalculator';
 import { getMaxExercises } from '../../utils/progression';
 import { generateExercises } from '../../utils/exerciseGenerator';
+import { generateWeakFactExercises } from '../../utils/factGenerator';
+import { selectWeakFactTargets } from '../../utils/factTracking';
 import { buildEstimationExercise, isWithinTolerance } from '../../utils/estimation';
 import { useSpeech } from '../../hooks/useSpeech';
 import { exerciseToSpeech } from '../../utils/speakable';
@@ -28,10 +30,15 @@ export default function LessonEngine() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { state } = useLocation();
-  const isPractice = state?.isPractice ?? false;
+  // The reserved 'review' id builds a fact-targeted set instead of a seeded
+  // lesson. It always runs in practice mode (no hearts, no XP, no completion).
+  const isReview = id === 'review';
+  const isPractice = (state?.isPractice ?? false) || isReview;
   const isEstimation = state?.isEstimation ?? false;
 
-  const lesson = useLiveQuery(() => db.lessons.get(id), [id]);
+  const lesson = useLiveQuery(() => (isReview ? undefined : db.lessons.get(id)), [id]);
+  const facts = useLiveQuery(() => (isReview ? db.facts.toArray() : []), [id]);
+  const progress = useLiveQuery(() => (isReview ? db.progress.toArray() : []), [id]);
   const user = useGameStore((s) => s.user);
   const ageBand = user?.ageBand || '8-10';
   const readAloud = user?.readAloud ?? false;
@@ -59,6 +66,57 @@ export default function LessonEngine() {
 
   const maxExercises = getMaxExercises(ageBand);
   const activeExercises = useMemo(() => {
+    if (isReview) {
+      const factList = facts ?? [];
+      const progressList = progress ?? [];
+      const startingTier = user?.startingTier ?? 1;
+
+      // Current tier in an operation = how many of its 5 lessons are completed,
+      // clamped to 1–5 (fallback to startingTier, then 1).
+      const tierFor = (operation) => {
+        const completed = progressList.filter(
+          (p) => p.completed && p.lessonId.startsWith(`math-${operation}-`)
+        ).length;
+        return Math.min(5, Math.max(1, completed || startingTier || 1));
+      };
+
+      // Operations the child has actually started (any completed lesson) —
+      // avoids surfacing division facts to a kid who's only done addition.
+      const ALL_OPS = ['addition', 'subtraction', 'multiplication', 'division'];
+      let activeOps = ALL_OPS.filter((op) =>
+        progressList.some((p) => p.completed && p.lessonId.startsWith(`math-${op}-`))
+      );
+
+      // Prefer ops that actually have weak facts to review.
+      const opsWithWeak = activeOps.filter(
+        (op) => selectWeakFactTargets(factList, { operation: op, max: 1 }).length > 0
+      );
+      const reviewOps = (opsWithWeak.length ? opsWithWeak : activeOps);
+
+      // Empty vault / brand-new child: fall back to a normal generated set for
+      // the first started operation (or addition).
+      if (reviewOps.length === 0) {
+        const op = activeOps[0] || 'addition';
+        return generateExercises(op, ageBand, tierFor(op), maxExercises);
+      }
+
+      // Spread `maxExercises` across the review ops, biasing each toward its
+      // own weak facts, then trim to maxExercises.
+      const perOp = Math.max(1, Math.ceil(maxExercises / reviewOps.length));
+      const set = [];
+      for (const op of reviewOps) {
+        set.push(
+          ...generateWeakFactExercises({
+            facts: factList,
+            operation: op,
+            ageBand,
+            tier: tierFor(op),
+            count: perOp,
+          })
+        );
+      }
+      return set.slice(0, maxExercises);
+    }
     if (!lesson) return [];
     if (isEstimation) {
       const tier = lesson.tier >= 4 ? lesson.tier : 5; // upper tiers only (D2)
@@ -70,7 +128,7 @@ export default function LessonEngine() {
     }
     return generateExercises(lesson.operation, ageBand, lesson.tier, maxExercises);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lesson?.id, ageBand, isEstimation]);
+  }, [lesson?.id, ageBand, isEstimation, isReview, facts, progress]);
   const currentExercise = activeExercises[exerciseIndex];
 
   useEffect(() => {
@@ -96,7 +154,7 @@ export default function LessonEngine() {
           addLessonXp(xp);
           setXpFlyUp(Date.now());
         }
-        recordAnswer(true, lesson?.operation, isPractice);
+        recordAnswer(true, currentExercise.operation || lesson?.operation, isPractice, currentExercise);
         setFeedback({
           isCorrect: true,
           isEstimation,
@@ -118,7 +176,7 @@ export default function LessonEngine() {
           if (!isPractice && !isEstimation) {
             loseHeart();
           }
-          recordAnswer(false, lesson?.operation, isPractice);
+          recordAnswer(false, currentExercise.operation || lesson?.operation, isPractice, currentExercise);
           setRetryUsed(false);
           // build-equation has no "a op b = []" string; reconstruct a friendly
           // worked equation for the banner from its canonical solution.
@@ -191,7 +249,12 @@ export default function LessonEngine() {
     navigate('/');
   };
 
-  if (!lesson) {
+  if (isReview) {
+    // Wait until the live facts/progress queries have resolved.
+    if (facts === undefined || progress === undefined) {
+      return <div className={styles.loading}>Loading review...</div>;
+    }
+  } else if (!lesson) {
     return <div className={styles.loading}>Loading lesson...</div>;
   }
 
@@ -243,7 +306,8 @@ export default function LessonEngine() {
         total={activeExercises.length}
         onClose={handleClose}
       />
-      {isPractice && <div className={styles.practiceLabel}>Practice Mode</div>}
+      {isReview && <div className={styles.practiceLabel}>Review</div>}
+      {isPractice && !isReview && <div className={styles.practiceLabel}>Practice Mode</div>}
       {isEstimation && <div className={styles.practiceLabel}>Estimation Challenge</div>}
       <AnimatePresence mode="wait">
         <motion.div
@@ -267,7 +331,7 @@ export default function LessonEngine() {
             correctAnswer={feedback.correctAnswer}
             correctBucket={feedback.correctBucket}
             equation={feedback.equation}
-            operation={lesson.operation}
+            operation={currentExercise?.operation || lesson?.operation}
             ageBand={ageBand}
             onContinue={handleContinue}
           />

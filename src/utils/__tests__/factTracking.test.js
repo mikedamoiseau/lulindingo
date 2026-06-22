@@ -189,7 +189,7 @@ describe('selectWeakFactTargets', () => {
   ];
 
   it('returns due-and-weak first, ascending box, oldest lastSeen tiebreak', () => {
-    const targets = selectWeakFactTargets(facts, { operation: 'multiplication', max: 10 });
+    const targets = selectWeakFactTargets(facts, { operation: 'multiplication', max: 10, today });
     // 7x8 (box 0, due) first; 6x9 (box 2, due) next; 5x5 (weak but not due) after due ones.
     expect(targets[0]).toBe('7x8');
     expect(targets[1]).toBe('6x9');
@@ -200,13 +200,13 @@ describe('selectWeakFactTargets', () => {
   });
 
   it('respects max', () => {
-    const targets = selectWeakFactTargets(facts, { operation: 'multiplication', max: 1 });
+    const targets = selectWeakFactTargets(facts, { operation: 'multiplication', max: 1, today });
     expect(targets).toHaveLength(1);
     expect(targets[0]).toBe('7x8');
   });
 
   it('filters by operation', () => {
-    const targets = selectWeakFactTargets(facts, { operation: 'addition', max: 10 });
+    const targets = selectWeakFactTargets(facts, { operation: 'addition', max: 10, today });
     expect(targets).toEqual(['3+9']);
   });
 });
