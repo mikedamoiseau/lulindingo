@@ -62,8 +62,10 @@ export const THEME_BANK = {
       (a, b) => `Dingo shares ${a} ${plural(a, 'treat')} equally among ${b} ${plural(b, 'friend')}. How many does each friend get?`,
     ],
     '11-12': [
+      // a = dividend, b = divisor, answer = exact quotient (story path forces
+      // exact division, so this shares out evenly with nothing left over).
       (a, b) =>
-        `A farmer packs ${a} ${plural(a, 'egg')} into cartons that each hold ${b}. How many full cartons can be filled?`,
+        `A factory packs ${a} ${plural(a, 'bottle')} equally into ${b} ${plural(b, 'crate')}. How many bottles are in each crate?`,
     ],
   },
 };

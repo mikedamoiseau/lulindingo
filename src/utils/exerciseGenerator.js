@@ -13,7 +13,7 @@
  *   story-problem  { type, equation, prompt, instruction, correctAnswer }
  */
 
-import { wrapStory } from './storyTemplates.js';
+import { wrapStory, plural } from './storyTemplates.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -210,18 +210,32 @@ function buildDivisionExercise(exType, ageBand, tier, variant) {
     const correctAnswer = `${quotient} r ${remainder}`;
     const equation = `${dividend} ÷ ${divisor} = []`;
     const base = { equation, correctAnswer, isRemainder: true, quotient, remainder, divisor, dividend };
-    if (exType === 'story-problem') {
-      const { prompt, instruction } = wrapStory('division', dividend, divisor, quotient, ageBand);
-      return { type: 'story-problem', ...base, prompt, instruction };
-    }
-    return { type: 'type-answer', ...base }; // remainder answers are always typed
+    // Remainder answers are typed as "q r r", which only the StoryProblem
+    // component's remainder input accepts — TypeTheAnswer's numeric pad cannot
+    // enter the "r". So remainder exercises are ALWAYS story problems, with a
+    // prompt that explicitly asks for both the share and the leftover.
+    const prompt =
+      `Share ${dividend} ${plural(dividend, 'cookie')} equally among ${divisor} ${plural(divisor, 'friend')}. ` +
+      `How many does each friend get, and how many are left over?`;
+    const instruction = 'Type your answer like "3 r 2" (each, then the leftover)';
+    return { type: 'story-problem', ...base, prompt, instruction };
   }
 
   const isChallenger = ageBand === '11-12';
 
   if (isChallenger) {
-    // Challenger: random dividend and divisor, decimal result rounded to 2dp
     const [lo, hi] = tierWindow(1_000, tier);
+    if (exType === 'story-problem') {
+      // A division story ("how many does each get") implies a whole-number
+      // answer, so build an EXACT division — never a decimal like 17.17 that a
+      // sharing narrative can't represent.
+      const divisor = randInt(2, Math.max(2, Math.min(12, Math.floor(hi / 2) || 2)));
+      const quotient = randInt(Math.max(1, Math.floor(lo / divisor)), Math.max(1, Math.floor(hi / divisor)));
+      const dividend = divisor * quotient;
+      const equation = `${dividend} ÷ ${divisor} = []`;
+      return buildStoryProblem('division', ageBand, dividend, divisor, quotient, equation);
+    }
+    // Challenger: random dividend and divisor, decimal result rounded to 2dp
     const dividend = randInt(Math.max(1, lo), hi);
     const divisor = randInt(1, Math.max(2, Math.floor(hi / 2)));
     const correctAnswer = parseFloat((dividend / divisor).toFixed(2));

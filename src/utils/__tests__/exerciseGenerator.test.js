@@ -398,6 +398,22 @@ describe('story-problem type', () => {
     const m = ex.equation.match(/^(\d+) \+ (\d+) = \[\]$/);
     expect(Number(m[1]) + Number(m[2])).toBe(ex.correctAnswer);
   });
+
+  it('challenger division stories use exact integer division (no decimal answer)', () => {
+    // Sample many — challenger division stories must never carry a decimal
+    // answer, since a sharing narrative implies a whole number.
+    for (let i = 0; i < 50; i++) {
+      const ex = generateExercises('division', '11-12', 4, 8).filter(
+        (e) => e.type === 'story-problem'
+      );
+      for (const e of ex) {
+        expect(Number.isInteger(e.correctAnswer)).toBe(true);
+        const m = e.equation.match(/^(\d+) ÷ (\d+) = \[\]$/);
+        expect(Number(m[1]) % Number(m[2])).toBe(0); // exact
+        expect(Number(m[1]) / Number(m[2])).toBe(e.correctAnswer);
+      }
+    }
+  });
 });
 
 describe('division remainder variant', () => {
@@ -419,6 +435,16 @@ describe('division remainder variant', () => {
   it('never emits a remainder of 0', () => {
     const ex = generateExercises('division', '11-12', 5, 30, { variant: 'remainder' });
     for (const e of ex) expect(parseRemainder(e.correctAnswer).r).not.toBe(0);
+  });
+
+  it('remainder exercises are always story-problems (only the StoryProblem input accepts "q r r")', () => {
+    const ex = generateExercises('division', '8-10', 3, 20, { variant: 'remainder' });
+    for (const e of ex) {
+      expect(e.type).toBe('story-problem');
+      // prompt asks for the leftover, not the bare share
+      expect(e.prompt.toLowerCase()).toContain('left over');
+      expect(e.instruction).toMatch(/r/);
+    }
   });
 
   it('default division stays decimal/exact (no isRemainder)', () => {
