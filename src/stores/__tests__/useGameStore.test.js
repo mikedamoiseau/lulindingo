@@ -484,3 +484,35 @@ describe('updateSettings re-applies skip logic', () => {
     expect(progress).toHaveLength(0);
   });
 });
+
+describe('createUser read-aloud defaults', () => {
+  beforeEach(async () => {
+    const { seedDatabase } = await import('../../db/seed.js');
+    await seedDatabase();
+  });
+
+  it('defaults readAloud off and speechRate 1.0', async () => {
+    await getStore().createUser('Ava', '6-7');
+    const { user } = getStore();
+    expect(user.readAloud).toBe(false);
+    expect(user.speechRate).toBe(1.0);
+  });
+});
+
+describe('updateSettings read-aloud', () => {
+  beforeEach(async () => {
+    const { seedDatabase } = await import('../../db/seed.js');
+    await seedDatabase();
+    await getStore().createUser('Ben', '8-10');
+  });
+
+  it('persists readAloud and speechRate without clearing progress', async () => {
+    await getStore().updateSettings({ readAloud: true, speechRate: 0.7 });
+    const { user } = getStore();
+    expect(user.readAloud).toBe(true);
+    expect(user.speechRate).toBe(0.7);
+    const fresh = await db.users.get(user.id);
+    expect(fresh.readAloud).toBe(true);
+    expect(fresh.speechRate).toBe(0.7);
+  });
+});
