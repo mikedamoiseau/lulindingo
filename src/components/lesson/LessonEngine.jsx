@@ -217,6 +217,8 @@ export default function LessonEngine() {
             isRetry={feedback.isRetry}
             correctAnswer={feedback.correctAnswer}
             equation={feedback.equation}
+            operation={lesson.operation}
+            ageBand={ageBand}
             onContinue={handleContinue}
           />
         )}
