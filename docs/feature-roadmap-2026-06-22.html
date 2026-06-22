@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LuLinDingo · Next 10 Features</title>
+<style>
+  :root {
+    /* cool squared-notebook paper, navy ink, marker coral + chalk teal */
+    --ground: #F1F4FB;
+    --paper:  #FFFFFF;
+    --text:   #1A2236;
+    --muted:  #5C6584;
+    --line:   #D7DEEE;
+    --accent: #FF5B4A;   /* marker coral */
+    --accent-2: #1FAE9C; /* chalk teal */
+    --gold:   #F4A92B;
+
+    --low:  #1FAE9C;
+    --med:  #F4A92B;
+    --high: #FF5B4A;
+
+    --font-display: ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN", "Quicksand", system-ui, sans-serif;
+    --font-body: system-ui, -apple-system, "Segoe UI", "Nunito", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+
+    --maxw: 900px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background-color: var(--ground);
+    /* squared math-notebook grid */
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 26px 26px;
+    color: var(--text);
+    font-family: var(--font-body);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 88px 0 40px; }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-2);
+    margin: 0 0 22px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .eyebrow .glyphs { color: var(--text); letter-spacing: 0.2em; opacity: 0.55; }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: clamp(38px, 6.5vw, 68px);
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    margin: 0 0 20px;
+  }
+  h1 .mark {
+    position: relative;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  h1 .mark::after {
+    content: "";
+    position: absolute;
+    left: -6px; right: -6px; bottom: 2px;
+    height: 0.42em;
+    background: rgba(255, 91, 74, 0.18);
+    border-radius: 4px;
+    z-index: -1;
+  }
+
+  .lede {
+    font-size: clamp(17px, 2.4vw, 21px);
+    color: var(--muted);
+    max-width: 60ch;
+    margin: 0 0 40px;
+  }
+
+  /* funnel strip — how the list was made (the real thesis) */
+  .funnel {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0;
+    background: var(--paper);
+    border: 1.5px solid var(--line);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 1px 0 rgba(26, 34, 54, 0.04);
+  }
+  .funnel .step {
+    flex: 1 1 0;
+    min-width: 120px;
+    padding: 20px 22px;
+    border-right: 1.5px solid var(--line);
+  }
+  .funnel .step:last-child { border-right: 0; }
+  .funnel .num {
+    font-family: var(--font-mono);
+    font-size: 30px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--text);
+  }
+  .funnel .step.final .num { color: var(--accent); }
+  .funnel .lbl {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 7px;
+  }
+
+  /* ---------- intro note ---------- */
+  .note {
+    margin: 48px 0 8px;
+    padding: 18px 22px;
+    border-left: 3px solid var(--accent-2);
+    background: rgba(31, 174, 156, 0.06);
+    border-radius: 0 12px 12px 0;
+    font-size: 15px;
+    color: var(--text);
+  }
+  .note strong { font-family: var(--font-display); }
+
+  /* ---------- ranked list ---------- */
+  .list { padding: 28px 0 16px; display: flex; flex-direction: column; gap: 18px; }
+
+  .card {
+    background: var(--paper);
+    border: 1.5px solid var(--line);
+    border-radius: 18px;
+    padding: 26px 28px 24px;
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 6px 22px;
+    box-shadow: 0 2px 0 rgba(26, 34, 54, 0.04);
+    transition: transform 0.5s cubic-bezier(.2,.7,.2,1), opacity 0.5s ease;
+  }
+  .card.reveal { opacity: 0; transform: translateY(18px); }
+  .card.in { opacity: 1; transform: none; }
+
+  .rank {
+    grid-row: 1 / span 3;
+    font-family: var(--font-mono);
+    font-size: 30px;
+    font-weight: 600;
+    color: var(--muted);
+    line-height: 1;
+    padding-top: 4px;
+  }
+
+  /* podium: top 3 get the marker treatment */
+  .card.podium { border-color: rgba(255, 91, 74, 0.4); }
+  .card.podium .rank {
+    color: var(--paper);
+    background: var(--accent);
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    box-shadow: 0 4px 12px rgba(255, 91, 74, 0.32);
+  }
+
+  .head { grid-column: 2; }
+  .name {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: clamp(20px, 2.8vw, 26px);
+    letter-spacing: -0.01em;
+    margin: 0 0 4px;
+    line-height: 1.12;
+  }
+  .tagline {
+    grid-column: 2;
+    color: var(--accent-2);
+    font-weight: 600;
+    font-size: 15px;
+    margin: 0 0 12px;
+  }
+  .body { grid-column: 2; }
+  .desc { margin: 0 0 12px; font-size: 15px; }
+  .value {
+    margin: 0 0 16px;
+    font-size: 14.5px;
+    color: var(--text);
+    padding-left: 14px;
+    border-left: 2px solid var(--gold);
+  }
+  .value b { font-family: var(--font-display); font-weight: 700; }
+
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .chip {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 5px 11px;
+    border-radius: 999px;
+    border: 1.5px solid var(--line);
+    color: var(--muted);
+  }
+  .chip.effort { color: var(--text); border-color: currentColor; }
+  .chip.effort.low  { color: var(--low); }
+  .chip.effort.med  { color: var(--med); }
+  .chip.effort.high { color: var(--high); }
+  .chip.who { background: rgba(31, 174, 156, 0.1); border-color: transparent; color: var(--accent-2); }
+
+  .why {
+    grid-column: 2;
+    margin: 14px 0 0;
+    padding-top: 14px;
+    border-top: 1px dashed var(--line);
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+  .why b { color: var(--text); font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
+
+  /* ---------- footer ---------- */
+  footer { padding: 40px 0 90px; }
+  .deferred {
+    background: var(--paper);
+    border: 1.5px dashed var(--line);
+    border-radius: 16px;
+    padding: 22px 24px;
+    font-size: 14.5px;
+    color: var(--muted);
+  }
+  .deferred b { color: var(--text); font-family: var(--font-display); }
+  .meta {
+    margin-top: 26px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    display: flex; flex-wrap: wrap; gap: 6px 18px;
+  }
+
+  a { color: var(--accent); }
+  :focus-visible { outline: 3px solid var(--accent-2); outline-offset: 2px; border-radius: 4px; }
+
+  @media (max-width: 560px) {
+    .card { grid-template-columns: 1fr; }
+    .rank { grid-row: auto; }
+    .head, .tagline, .body, .why { grid-column: 1; }
+    .funnel .step { flex-basis: 50%; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card { transition: none; }
+    .card.reveal { opacity: 1; transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero wrap">
+  <p class="eyebrow">Product roadmap · LuLinDingo <span class="glyphs">+ &minus; &times; &divide;</span></p>
+  <h1>The next ten things<br />worth <span class="mark">building</span>.</h1>
+  <p class="lede">Ten real, user-facing features for the math app — ranked by how much they'd help kids learn, keep them coming back, and make the app feel complete. No refactors, no polish. Things a child or a parent would actually notice.</p>
+
+  <div class="funnel" role="list" aria-label="How this shortlist was produced">
+    <div class="step" role="listitem"><div class="num">5</div><div class="lbl">idea lenses, from pedagogy to play</div></div>
+    <div class="step" role="listitem"><div class="num">30</div><div class="lbl">candidate features generated</div></div>
+    <div class="step" role="listitem"><div class="num">3</div><div class="lbl">judges scored every one</div></div>
+    <div class="step final" role="listitem"><div class="num">10</div><div class="lbl">picked &amp; ranked</div></div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <p class="note"><strong>How to read this.</strong> The list runs heaviest-impact first. Learning features lead, the daily-habit and reward layers follow, because a great game loop only pays off once kids are practicing the right things. Effort is a rough build estimate against the current generator + local-storage setup.</p>
+
+  <section class="list">
+
+    <!-- 1 -->
+    <article class="card podium reveal">
+      <div class="rank">1</div>
+      <div class="head"><h2 class="name">Fact Vault</h2></div>
+      <p class="tagline">The app finally remembers exactly which facts your kid keeps missing.</p>
+      <div class="body">
+        <p class="desc">Right now the app only tracks whole lessons — it never notices that a child fails <b>7×8</b> specifically. Fact Vault remembers every individual fact: how often it's been seen, how often it's been right, and how shaky it still is. Then it quietly brings weak facts back at the right moment — tomorrow, then in a few days, then a week — and powers a <em>"Practice for you"</em> button that builds a set aimed straight at today's weak spots, with no hearts or XP at stake.</p>
+        <p class="value"><b>Why it matters:</b> kids stop re-drilling facts they already own and meet the exact ones they get wrong, right before they'd forget them. Practice time converts directly into the skill they're weakest on.</p>
+        <div class="tags">
+          <span class="chip effort high">Effort · High</span>
+          <span class="chip who">For kids</span>
+        </div>
+      </div>
+      <p class="why"><b>Why #1 —</b> Every judge ranked it top: the single biggest learning-and-retention lever, and the app's largest real gap. It also becomes the data the parent dashboard later reads from, so it does double duty.</p>
+    </article>
+
+    <!-- 2 -->
+    <article class="card podium reveal">
+      <div class="rank">2</div>
+      <div class="head"><h2 class="name">Show Me How</h2></div>
+      <p class="tagline">A wrong answer becomes a mini-lesson instead of just a correction.</p>
+      <div class="body">
+        <p class="desc">Today a miss just states "the answer is 56." This adds a tappable <em>"Show me how"</em> that draws the strategy from the same numbers: counting-up dots for little addition, a number-line jump for subtraction, a skip-count chain ("5, 10, 15, 20") for multiplication, equal groups for division. Because it's drawn from the numbers rather than written by hand, it works on every single generated question.</p>
+        <p class="value"><b>Why it matters:</b> a miss turns into a teaching moment, so kids learn the <em>why</em> behind the answer instead of memorizing isolated results.</p>
+        <div class="tags">
+          <span class="chip effort med">Effort · Medium</span>
+          <span class="chip who">For kids</span>
+        </div>
+      </div>
+      <p class="why"><b>Why #2 —</b> The strongest pure-learning feature after Fact Vault, and a natural pair with it: Fact Vault surfaces the weak fact, Show Me How teaches the strategy. Medium effort, no data changes.</p>
+    </article>
+
+    <!-- 3 -->
+    <article class="card podium reveal">
+      <div class="rank">3</div>
+      <div class="head"><h2 class="name">Read Aloud</h2></div>
+      <p class="tagline">Pre-readers and dyslexic kids do the math without the reading getting in the way.</p>
+      <div class="body">
+        <p class="desc">A tap-to-hear speaker on every question reads the equation and the answer choices out loud — "seven plus four equals what?" — using the voice already built into the browser, fully offline. A settings toggle remembers the choice. It lifts the reading barrier that otherwise blocks a math task for the youngest kids, and lets anyone practice eyes-light, even in the car.</p>
+        <p class="value"><b>Why it matters:</b> children who can do the math but can't yet read the problem — the 6–7s, and kids with reading difficulties — can finally use the app on their own.</p>
+        <div class="tags">
+          <span class="chip effort low">Effort · Low</span>
+          <span class="chip who">For kids</span>
+        </div>
+      </div>
+      <p class="why"><b>Why #3 —</b> Real inclusion value at genuinely low cost — the speech engine ships with the browser. It widens who can use the app at all, which is a completeness multiplier, not a nice-to-have.</p>
+    </article>
+
+    <!-- 4 -->
+    <article class="card reveal">
+      <div class="rank">4</div>
+      <div class="head"><h2 class="name">Story Problems</h2></div>
+      <p class="tagline">Bare sums become the real-world reasoning kids are actually tested on at school.</p>
+      <div class="body">
+        <p class="desc">The same generated numbers get wrapped in a short story — "Dingo found 7 acorns, then 5 more. How many now?" — with the wording getting longer as kids get older. It also adds remainders for the bigger kids ("17 ÷ 5 = 3 r 2"), the one real curriculum idea the current division skips.</p>
+        <p class="value"><b>Why it matters:</b> kids learn to pick the right operation from a situation — the school-tested skill bare arithmetic never builds — and meet remainders for the first time.</p>
+        <div class="tags">
+          <span class="chip effort med">Effort · Medium</span>
+          <span class="chip who">For kids</span>
+        </div>
+      </div>
+      <p class="why"><b>Why #4 —</b> High learning value and real curriculum breadth. Sits just below Show Me How because writing good story templates per age and operation is careful work, and the reading is part of the task (helped by Read Aloud at #3).</p>
+    </article>
+
+    <!-- 5 -->
+    <article class="card reveal">
+      <div class="rank">5</div>
+      <div class="head"><h2 class="name">Missing-Number &amp; Build-an-Equation Puzzles</h2></div>
+      <p class="tagline">Two-way number fluency: the inverse reasoning that quietly becomes algebra.</p>
+      <div class="body">
+        <p class="desc">Kids only ever fill in the answer. These two puzzles flip that. <em>Missing Number</em> moves the blank into the question ("7 + ▢ = 15", "▢ ÷ 4 = 6"). <em>Build an Equation</em> shows a target like 24 and lets the child drag real numbers (plus a couple of decoys) to make a true sum — learning that 24 is both 6×4 and 8×3.</p>
+        <p class="value"><b>Why it matters:</b> working backwards forces kids to understand how numbers relate, instead of one-directional recall — the groundwork for early algebra.</p>
+        <div class="tags">
+          <span class="chip effort med">Effort · Medium</span>
+          <span class="chip who">For kids</span>
+        </div>
+      </div>
+      <p class="why"><b>Why #5 —</b> Two close cousins merged into one feature, since both need the same groundwork. Fresh, conceptually deep, and cheap because the math is already known — and not on the team's existing roadmap.</p>
+    </article>
+
+    <!-- 6 -->
+    <article class="card reveal">
+      <div class="rank">6</div>
+      <div class="head"><h2 class="name">Grown-Up Corner</h2></div>
+      <p class="tagline">The first honest, specific picture of what your child actually knows.</p>
+      <div class="body">
+        <p class="desc">A parent area tucked behind a simple "multiply two numbers" gate (kids can't, adults solve it instantly). It shows the streak, XP trend, stars per lesson, which operations are done, when the child plays — and, once Fact Vault exists, the specific weak spots ("still shaky on 7s and 8s"). It ends with one plain suggestion: "Mia's breezing through division — try bumping her level." Everything stays on the device; no account.</p>
+        <p class="value"><b>Why it matters:</b> parents and teachers finally see strengths and gaps and get one concrete thing to do — the top thing caregivers ask for, and impossible today.</p>
+        <div class="tags">
+          <span class="chip effort med">Effort · Medium</span>
+          <span class="chip who">For parents</span>
+        </div>
+      </div>
+      <p class="why"><b>Why #6 —</b> The top caregiver ask, but its richest signals depend on Fact Vault (#1). A useful first version ships from existing data alone, so it earns a strong-but-dependent middle spot.</p>
+    </article>
+
+    <!-- 7 -->
+    <article class="card reveal">
+      <div class="rank">7</div>
+      <div class="head"><h2 class="name">Closest Wins</h2></div>
+      <p class="tagline">Teaches rounding and "is my answer sensible?" — a skill no current mode touches.</p>
+      <div class="body">
+        <p class="desc">A mode for the bigger-number levels that hides the exact answer and asks for the nearest of a few rounded buckets ("about 200 / 400 / 600"), or a typed estimate that counts if it's close enough. It builds the habit of sizing up an answer before committing to it.</p>
+        <p class="value"><b>Why it matters:</b> kids learn estimation and rounding — real curriculum the exact-answer-only app skips entirely — and get comfortable reasoning about big numbers instead of freezing.</p>
+        <div class="tags">
+          <span class="chip effort low">Effort · Low</span>
+          <span class="chip who">For kids</span>
+        </div>
+      </div>
+      <p class="why"><b>Why #7 —</b> A fresh, low-cost learning addition that fills a clear curriculum gap and lowers big-number anxiety. A unique skill nobody else in the pool covers.</p>
+    </article>
+
+    <!-- 8 -->
+    <article class="card reveal">
+      <div class="rank">8</div>
+      <div class="head"><h2 class="name">Daily Quest Board</h2></div>
+      <p class="tagline">Three fresh reasons to open the app every day — no server required.</p>
+      <div class="body">
+        <p class="desc">Three small quests appear each day — "Answer 10 multiplication questions," "Finish a lesson with 3 stars," "Get 5 right in a row." They're built from today's date, track against what kids already do, reward a bonus heart when all three are done, and reset at midnight.</p>
+        <p class="value"><b>Why it matters:</b> a concrete, changing reason to come back daily rather than only when the mood strikes — and the rotating goals nudge kids toward operations they'd otherwise dodge.</p>
+        <div class="tags">
+          <span class="chip effort med">Effort · Medium</span>
+          <span class="chip who">For kids &amp; parents</span>
+        </div>
+      </div>
+      <p class="why"><b>Why #8 —</b> The best-scoring engagement mechanic, and it pulls double duty by steering kids toward neglected operations. The lead retention feature once the learning loop is solid.</p>
+    </article>
+
+    <!-- 9 -->
+    <article class="card reveal">
+      <div class="rank">9</div>
+      <div class="head"><h2 class="name">Family Profiles</h2></div>
+      <p class="tagline">Siblings stop clobbering each other's streaks on the shared tablet.</p>
+      <div class="body">
+        <p class="desc">The app holds one child today. This lets a family set up several — each with their own name, level, hearts, XP, streak and progress — with a "Who's playing?" picker at launch and a tap to switch. Set up once, on the device they already own. No logins.</p>
+        <p class="value"><b>Why it matters:</b> each sibling, or each student on a classroom iPad, keeps a fully separate learning path and streak instead of overwriting each other.</p>
+        <div class="tags">
+          <span class="chip effort high">Effort · High</span>
+          <span class="chip who">For parents</span>
+        </div>
+      </div>
+      <p class="why"><b>Why #9 —</b> A frequently-hit real pain, but the most invasive item: every saved record has to be re-tied to a specific child. High effort against a non-learning benefit lands it here.</p>
+    </article>
+
+    <!-- 10 -->
+    <article class="card reveal">
+      <div class="rank">10</div>
+      <div class="head"><h2 class="name">Dingo's Den</h2></div>
+      <p class="tagline">Turns the invisible XP counter into a world your kid owns and grows.</p>
+      <div class="body">
+        <p class="desc">XP is just a rising number today. This makes it spendable: kids use earned "acorns" to unlock and place things around the Dingo — a burrow, plants, a pond, day and night, little hats and colors. It all rebuilds instantly offline, so there's something personal to come back to.</p>
+        <p class="value"><b>Why it matters:</b> gives earned XP a tangible payoff and a reason to keep practicing even after every unit is starred — kids return to spend acorns and watch their Dingo's world grow.</p>
+        <div class="tags">
+          <span class="chip effort med">Effort · Medium</span>
+          <span class="chip who">For kids</span>
+        </div>
+      </div>
+      <p class="why"><b>Why #10 —</b> The strongest reward-and-ownership idea and the natural place for all the XP the app already hands out. It adds engagement but no learning, and needs real artwork to feel good, so it rounds out the ten.</p>
+    </article>
+
+  </section>
+
+  <footer>
+    <div class="deferred">
+      <b>Held back on purpose:</b> a chess module. It keeps coming up, and it's a great long-term bet — but chess is really a separate product bolted into the app. Math mini-games, mastery, and the daily loop are all far closer to what's already here. Revisit once the core learning experience above feels complete.
+    </div>
+    <div class="meta">
+      <span>Generated 22 Jun 2026</span>
+      <span>30 candidates · 5 lenses · 3 judges</span>
+      <span>Grounded in issue #14</span>
+      <span>Already shipped: placement test</span>
+    </div>
+  </footer>
+
+</main>
+
+<script>
+  (function () {
+    var cards = document.querySelectorAll('.card.reveal');
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce || !('IntersectionObserver' in window)) {
+      cards.forEach(function (c) { c.classList.add('in'); });
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, { threshold: 0.12 });
+    cards.forEach(function (c) { io.observe(c); });
+  })();
+</script>
+
+</body>
+</html>
