@@ -1,11 +1,31 @@
-import { motion } from 'framer-motion';
+import { useMemo, useState } from 'react';
+// eslint-disable-next-line no-unused-vars -- `motion`/`AnimatePresence` are used in JSX; repo eslint lacks the react plugin to see it
+import { motion, AnimatePresence } from 'framer-motion';
+import { buildStrategy } from '../../utils/strategyBuilder';
+import StrategyView from './StrategyView';
 import styles from './FeedbackBanner.module.css';
 
 const ENCOURAGEMENTS = ['Amazing!', 'Great job!', 'Perfect!', 'Brilliant!', 'Keep it up!'];
 const randomEncouragement = () =>
   ENCOURAGEMENTS[Math.floor(Math.random() * ENCOURAGEMENTS.length)];
 
-export default function FeedbackBanner({ isCorrect, correctAnswer, equation, onContinue, isRetry }) {
+export default function FeedbackBanner({
+  isCorrect,
+  correctAnswer,
+  equation,
+  operation,
+  ageBand,
+  onContinue,
+  isRetry,
+}) {
+  // Hooks must run unconditionally — declare before the isRetry early return.
+  const [revealed, setRevealed] = useState(false);
+  const descriptor = useMemo(
+    () => (!isCorrect && !isRetry ? buildStrategy(equation, operation, ageBand) : null),
+    [isCorrect, isRetry, equation, operation, ageBand]
+  );
+  const canShow = descriptor && descriptor.kind !== 'none';
+
   if (isRetry) {
     return (
       <motion.div
@@ -47,6 +67,21 @@ export default function FeedbackBanner({ isCorrect, correctAnswer, equation, onC
                 <span className={styles.explanation}>
                   {equation.replace('[]', String(correctAnswer))}
                 </span>
+              )}
+              {canShow && !revealed && (
+                <button className={styles.showMeBtn} onClick={() => setRevealed(true)}>
+                  💡 Show me how
+                </button>
+              )}
+              {canShow && revealed && (
+                <AnimatePresence>
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                  >
+                    <StrategyView descriptor={descriptor} />
+                  </motion.div>
+                </AnimatePresence>
               )}
             </div>
           </>
