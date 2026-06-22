@@ -33,3 +33,20 @@
 .active {
   color: var(--blue);
 }
+
+/* De-emphasized adult entry point: dimmer and smaller so kids overlook it. */
+.grownUps {
+  opacity: 0.45;
+  flex: 0 0 auto;
+  padding-left: var(--space-md);
+  padding-right: var(--space-md);
+}
+
+.grownUps:hover {
+  opacity: 0.8;
+}
+
+.grownUps svg {
+  width: 18px;
+  height: 18px;
+}

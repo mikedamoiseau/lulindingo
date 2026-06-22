@@ -7,6 +7,7 @@ import AppLayout from './components/layout/AppLayout';
 import LearningPath from './components/home/LearningPath';
 import ProgressScreen from './components/progress/ProgressScreen';
 import LessonEngine from './components/lesson/LessonEngine';
+import GrownUpCorner from './components/grownups/GrownUpCorner';
 import SettingsPanel from './components/settings/SettingsPanel';
 
 export default function App() {
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="/progress" element={<ProgressScreen />} />
           </Route>
           <Route path="/lesson/:id" element={<LessonEngine />} />
+          <Route path="/grown-ups" element={<GrownUpCorner />} />
         </Routes>
         <SettingsPanel />
       </div>
