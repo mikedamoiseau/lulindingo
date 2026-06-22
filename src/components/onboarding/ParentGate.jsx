@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+// eslint-disable-next-line no-unused-vars -- `motion` is used as motion.* in JSX; repo eslint lacks the react plugin to see it
 import { motion } from 'framer-motion';
 import styles from './ParentGate.module.css';
 

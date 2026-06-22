@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+// eslint-disable-next-line no-unused-vars -- `motion` is used as motion.* in JSX; repo eslint lacks the react plugin to see it
 import { AnimatePresence, motion } from 'framer-motion';
 import useGameStore from '../../stores/useGameStore';
 import Onboarding from './Onboarding';

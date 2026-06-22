@@ -8,6 +8,7 @@ import QuestBoard from './QuestBoard';
 import ReviewCallout from './ReviewCallout';
 import HeartDisplay from '../shared/HeartDisplay';
 import Mascot from '../shared/Mascot';
+import AvatarSwitcher from './AvatarSwitcher';
 import styles from './LearningPath.module.css';
 
 export default function LearningPath() {
@@ -59,6 +60,7 @@ export default function LearningPath() {
         </div>
         <div className={styles.headerRight}>
           <HeartDisplay />
+          <AvatarSwitcher />
           <button
             className={styles.gearBtn}
             onClick={() => window.dispatchEvent(new Event('open-settings'))}
