@@ -19,6 +19,8 @@ import SelectTheAnswer from './exercises/SelectTheAnswer';
 import FollowThePattern from './exercises/FollowThePattern';
 import EstimationChallenge from './exercises/EstimationChallenge';
 import StoryProblem from './exercises/StoryProblem';
+import MissingNumber from './exercises/MissingNumber';
+import BuildEquation from './exercises/BuildEquation';
 import { matchesAnswer } from '../../utils/answerMatch';
 import styles from './LessonEngine.module.css';
 
@@ -101,10 +103,11 @@ export default function LessonEngine() {
         setRetryUsed(false);
       } else {
         // Estimation gives no retry — "close" is already the reward (D6).
+        // Typed-numeric answers (incl. missing-number) get one retry for the
+        // "oops typo" case; selection-based types (select/follow/build) do not.
+        const RETRYABLE = new Set(['type-answer', 'story-problem', 'missing-number']);
         const canRetry =
-          !currentExercise.estimation &&
-          (currentExercise.type === 'type-answer' || currentExercise.type === 'story-problem') &&
-          !retryUsed;
+          !currentExercise.estimation && RETRYABLE.has(currentExercise.type) && !retryUsed;
         if (canRetry) {
           setFeedback({ isRetry: true });
           setRetryUsed(true);
@@ -115,12 +118,18 @@ export default function LessonEngine() {
           }
           recordAnswer(false);
           setRetryUsed(false);
+          // build-equation has no "a op b = []" string; reconstruct a friendly
+          // worked equation for the banner from its canonical solution.
+          const feedbackEquation =
+            currentExercise.type === 'build-equation'
+              ? `${currentExercise.solution[0]} ${currentExercise.operator} ${currentExercise.solution[1]} = []`
+              : currentExercise.equation;
           setFeedback({
             isCorrect: false,
             isEstimation,
             correctAnswer: currentExercise.correctAnswer,
             correctBucket: currentExercise.correctBucket,
-            equation: currentExercise.equation,
+            equation: feedbackEquation,
           });
         }
       }
@@ -216,6 +225,10 @@ export default function LessonEngine() {
         return <FollowThePattern key={exerciseIndex} {...props} />;
       case 'story-problem':
         return <StoryProblem key={exerciseIndex} {...props} />;
+      case 'missing-number':
+        return <MissingNumber key={exerciseIndex} {...props} />;
+      case 'build-equation':
+        return <BuildEquation key={exerciseIndex} {...props} />;
       default:
         return <div>Unknown exercise type: {currentExercise.type}</div>;
     }
