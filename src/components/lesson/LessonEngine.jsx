@@ -36,10 +36,19 @@ export default function LessonEngine() {
   const isPractice = (state?.isPractice ?? false) || isReview;
   const isEstimation = state?.isEstimation ?? false;
 
-  const lesson = useLiveQuery(() => (isReview ? undefined : db.lessons.get(id)), [id]);
-  const facts = useLiveQuery(() => (isReview ? db.facts.toArray() : []), [id]);
-  const progress = useLiveQuery(() => (isReview ? db.progress.toArray() : []), [id]);
   const user = useGameStore((s) => s.user);
+  const activeUserId = user?.id;
+  const lesson = useLiveQuery(() => (isReview ? undefined : db.lessons.get(id)), [id]);
+  // Review mode reads the active child's facts/progress so weak-fact selection
+  // and per-operation tier are scoped to the current player.
+  const facts = useLiveQuery(
+    () => (isReview && activeUserId != null ? db.facts.where('userId').equals(activeUserId).toArray() : []),
+    [id, activeUserId]
+  );
+  const progress = useLiveQuery(
+    () => (isReview && activeUserId != null ? db.progress.where('userId').equals(activeUserId).toArray() : []),
+    [id, activeUserId]
+  );
   const ageBand = user?.ageBand || '8-10';
   const readAloud = user?.readAloud ?? false;
   const speechRate = user?.speechRate ?? 1.0;

@@ -12,13 +12,22 @@ import styles from './LearningPath.module.css';
 
 export default function LearningPath() {
   const user = useGameStore((s) => s.user);
+  const activeUserId = user?.id;
   const units = useLiveQuery(
     () => db.units.where('moduleId').equals('math').sortBy('order'),
     []
   );
   const lessons = useLiveQuery(() => db.lessons.orderBy('order').toArray(), []);
-  const progress = useLiveQuery(() => db.progress.toArray(), []);
-  const facts = useLiveQuery(() => db.facts.toArray(), []);
+  // Scope per-child tables by the active profile so switching children refreshes
+  // the path live (the dep array re-runs the query on switch).
+  const progress = useLiveQuery(
+    () => (activeUserId == null ? [] : db.progress.where('userId').equals(activeUserId).toArray()),
+    [activeUserId]
+  );
+  const facts = useLiveQuery(
+    () => (activeUserId == null ? [] : db.facts.where('userId').equals(activeUserId).toArray()),
+    [activeUserId]
+  );
 
   if (!units || !lessons || !progress) {
     return (
