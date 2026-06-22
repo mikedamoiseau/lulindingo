@@ -392,6 +392,13 @@ function buildMissingNumberExercise(operation, ageBand, tier) {
  * Returns `null` for unsafe combos (challenger division) so the caller falls back.
  */
 function buildBuildEquationExercise(operation, ageBand, tier) {
+  // Division is gated out of build-equation: the draggable operand would be the
+  // large dividend (e.g. drag "90" to assemble "[] ÷ [] = 9"), which is poor UX,
+  // and tiny quotients (result ≤ ~1) make a clean, single-solution decoy tray
+  // essentially impossible (almost any pair of adjacent integers divides to ≈1).
+  // Returning null makes the dispatcher fall back to a forward typed answer.
+  if (operation === 'division') return null;
+
   const t = makeTriple(operation, ageBand, tier);
   if (!t || !t.clean) return null;
 
@@ -399,26 +406,37 @@ function buildBuildEquationExercise(operation, ageBand, tier) {
   const solution = [t.a, t.b];
   const commutative = operator === '+' || operator === '×';
 
+  // Degenerate subtraction (n - n = 0) has identical operands and a result that
+  // ANY equal-valued tile pair reproduces, so a clean single-solution tray is
+  // impossible. Fall back to a forward exercise.
+  if (operator === '-' && result === 0) return null;
+
+  // Decoy tiles must stay within the band's representable operand range, so a
+  // tile is never larger than any real operand the child could see. For add/sub
+  // that is AGE_BAND_MAX; for multiplication it's the factor max.
+  const operandMax =
+    operator === '×'
+      ? (ageBand === '11-12' ? 1000 : 50)
+      : (AGE_BAND_MAX[ageBand] ?? AGE_BAND_MAX['11-12']);
+
   // A candidate tile forms an unintended solution if, paired (in either order
   // for commutative ops) with the solution operands or another accepted tile,
   // it yields the result — other than the intended solution (and its swap).
   const isTruePair = (x, y) => Math.abs(applyOp(operator, x, y) - result) < 0.005;
-  const solKeys = new Set([
-    `${solution[0]},${solution[1]}`,
-    ...(commutative ? [`${solution[1]},${solution[0]}`] : []),
-  ]);
 
-  // Would adding `cand` to the existing accepted tiles create any true pair
-  // (ordered, both directions for commutative) that is NOT the intended solution?
+  // Would adding `cand` to the existing accepted tiles create an unintended true
+  // pair? We iterate over DISTINCT tile POSITIONS (a child cannot place one tile
+  // in both slots), so the two solution tiles are positions 0 and 1; any other
+  // ordered position pair that yields the result is a second solution.
   const createsSecondSolution = (cand, accepted) => {
-    const tiles = [...solution, ...accepted, cand];
-    for (const x of tiles) {
-      for (const y of tiles) {
-        if (x === cand || y === cand) {
-          // pairs involving the candidate (and we also re-check existing below)
-        }
-        if (!isTruePair(x, y)) continue;
-        if (!solKeys.has(`${x},${y}`)) return true;
+    const tiles = [...solution, ...accepted, cand]; // positions: 0,1 = solution
+    for (let i = 0; i < tiles.length; i++) {
+      for (let j = 0; j < tiles.length; j++) {
+        if (i === j) continue; // can't use the same tile twice
+        // The intended solution uses positions (0,1) — and (1,0) for commutative.
+        if (i === 0 && j === 1) continue;
+        if (commutative && i === 1 && j === 0) continue;
+        if (isTruePair(tiles[i], tiles[j])) return true;
       }
     }
     return false;
@@ -431,39 +449,40 @@ function buildBuildEquationExercise(operation, ageBand, tier) {
     ...generateDistractors(result, 4),
   ];
 
+  // A candidate is acceptable as a decoy if it is a non-negative integer within
+  // the band's operand range, not equal to a solution operand or an existing
+  // decoy, and does not create a second true equation.
+  const acceptable = (cand) =>
+    Number.isInteger(cand) &&
+    cand >= 0 &&
+    cand <= operandMax &&
+    cand !== solution[0] &&
+    cand !== solution[1] &&
+    !decoys.includes(cand) &&
+    !createsSecondSolution(cand, decoys);
+
   const decoys = [];
   let poolIdx = 0;
   while (decoys.length < 3 && poolIdx < pool.length) {
     const cand = pool[poolIdx++];
-    if (cand < 0) continue;
-    if (cand === solution[0] || cand === solution[1]) continue;
-    if (decoys.includes(cand)) continue;
-    if (createsSecondSolution(cand, decoys)) continue;
-    decoys.push(cand);
+    if (acceptable(cand)) decoys.push(cand);
   }
 
-  // Padding fallback: bounded far-away integers that pass the no-second-solution filter.
+  // Padding fallback: walk candidate offsets around the result (both directions),
+  // staying within [0, operandMax], skipping any that fail the filter.
   let pad = 1;
   let attempts = 0;
-  while (decoys.length < 3 && attempts < 500) {
+  while (decoys.length < 3 && attempts < 4000) {
     attempts++;
-    const cand = result + pad;
+    const cand = pad % 2 === 1 ? result + Math.ceil(pad / 2) : result - pad / 2;
     pad++;
-    if (cand < 0) continue;
-    if (cand === solution[0] || cand === solution[1]) continue;
-    if (decoys.includes(cand)) continue;
-    if (createsSecondSolution(cand, decoys)) continue;
-    decoys.push(cand);
+    if (acceptable(cand)) decoys.push(cand);
   }
 
-  // Last resort (tiny ranges): if still short, accept distinct values even if
-  // far — they cannot form result with result+pad spacing in practice.
-  while (decoys.length < 3) {
-    const cand = result + pad;
-    pad++;
-    if (cand >= 0 && !decoys.includes(cand) && cand !== solution[0] && cand !== solution[1]) {
-      decoys.push(cand);
-    }
+  // Last resort (tiny ranges): scan the whole legal operand range for any
+  // distinct value that still passes the no-second-solution filter.
+  for (let cand = 0; decoys.length < 3 && cand <= operandMax; cand++) {
+    if (acceptable(cand)) decoys.push(cand);
   }
 
   const tray = shuffle([...solution, ...decoys]);

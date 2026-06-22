@@ -26,7 +26,14 @@ const { default: units } = await import(
 
 const AGE_BANDS = ['6-7', '8-10', '11-12'];
 const TIERS = [1, 2, 3, 4, 5];
-const VALID_TYPES = ['type-answer', 'select-answer', 'follow-pattern', 'story-problem'];
+const VALID_TYPES = [
+  'type-answer',
+  'select-answer',
+  'follow-pattern',
+  'story-problem',
+  'missing-number',
+  'build-equation',
+];
 const SAMPLES_PER_COMBO = 300;
 
 // Parse a remainder answer string "3 r 2" / "3r2" / "3 R 2" → { q, r } or null.
@@ -59,6 +66,19 @@ function maxAnswer(operation, ageBand) {
   }
 }
 
+// Max reachable OPERAND value (not result). For the equation-puzzle types the
+// blank / tray tiles can hold an operand, which for division is the DIVIDEND
+// (= divisor × quotient), bounded by factorMax² — much larger than the quotient
+// cap returned by maxAnswer. Add/sub/mul operands never exceed maxAnswer, so
+// only division differs.
+function maxOperand(operation, ageBand) {
+  if (operation === 'division') {
+    const factorMax = ageBand === '11-12' ? 1_000 : 50;
+    return factorMax * factorMax;
+  }
+  return maxAnswer(operation, ageBand);
+}
+
 const errors = [];
 
 function err(ctx, msg) {
@@ -86,12 +106,153 @@ function computeExpected(a, operator, b) {
   }
 }
 
+// Same arithmetic as computeExpected; named to mirror the generator's applyOp.
+const applyOp = computeExpected;
+
+// Parse a missing-number equation "[] + 8 = 15" / "7 + [] = 15" / "[] ÷ 4 = 6".
+// Returns { aStr, operator, bStr, result } with exactly one operand being "[]".
+function parseMissingEquation(equation) {
+  const match = equation.match(
+    /^(\[\]|[\d.]+)\s*([+\-×÷])\s*(\[\]|[\d.]+)\s*=\s*([\d.]+)$/
+  );
+  if (!match) return null;
+  const aStr = match[1];
+  const bStr = match[3];
+  // Exactly one operand is the blank (RHS is always numeric here).
+  const blanks = [aStr, bStr].filter((s) => s === '[]').length;
+  if (blanks !== 1) return null;
+  return { aStr, operator: match[2], bStr, result: parseFloat(match[4]) };
+}
+
 const OP_SYMBOL = { addition: '+', subtraction: '-', multiplication: '×', division: '÷' };
 
 function validateExercise(ctx, operation, ageBand, ex) {
   // type
   if (!VALID_TYPES.includes(ex.type)) {
     err(ctx, `invalid type "${ex.type}"`);
+    return;
+  }
+
+  // NOTE on fallback tolerance: the missing-number and build-equation cycle
+  // slots silently fall back to a forward `type-answer` for unsafe combos
+  // (challenger decimal division). So a combo that "should" produce a puzzle
+  // type may legitimately emit a `type-answer` object — that is valid and is
+  // handled by the generic branch below, not an error.
+
+  // ---- missing-number: blank sits on an OPERAND; correctAnswer is that operand
+  if (ex.type === 'missing-number') {
+    const parsedM = parseMissingEquation(ex.equation);
+    if (!parsedM) {
+      err(ctx, `unparseable missing-number equation "${ex.equation}"`);
+      return;
+    }
+    if (parsedM.operator !== OP_SYMBOL[operation]) {
+      err(ctx, `missing-number "${ex.equation}" uses "${parsedM.operator}", expected "${OP_SYMBOL[operation]}"`);
+    }
+    if (ex.blankSlot !== 'a' && ex.blankSlot !== 'b') {
+      err(ctx, `missing-number invalid blankSlot ${JSON.stringify(ex.blankSlot)}`);
+    }
+    if (typeof ex.correctAnswer !== 'number' || !Number.isFinite(ex.correctAnswer)) {
+      err(ctx, `missing-number correctAnswer not finite: ${JSON.stringify(ex.correctAnswer)}`);
+      return;
+    }
+    // Reconstruct the full LHS by substituting correctAnswer into the blank,
+    // then assert it equals the shown RHS.
+    const aFilled = parsedM.aStr === '[]' ? ex.correctAnswer : parseFloat(parsedM.aStr);
+    const bFilled = parsedM.bStr === '[]' ? ex.correctAnswer : parseFloat(parsedM.bStr);
+    const got = computeExpected(aFilled, parsedM.operator, bFilled);
+    if (got === null || Math.abs(got - parsedM.result) > 0.005) {
+      err(ctx, `missing-number "${ex.equation}" with []=${ex.correctAnswer} → ${got}, not ${parsedM.result}`);
+    }
+    // The missing operand is bounded by the same ranges as a forward answer,
+    // so it shares the existing per-operation answer cap (no new constant).
+    if (ex.correctAnswer < 0) {
+      err(ctx, `missing-number negative answer ${ex.correctAnswer} ("${ex.equation}")`);
+    }
+    const capM = maxOperand(operation, ageBand);
+    if (ex.correctAnswer > capM) {
+      err(ctx, `missing-number answer ${ex.correctAnswer} exceeds max ${capM} ("${ex.equation}")`);
+    }
+    if (operation === 'division') {
+      if (ex.blankSlot !== 'a') {
+        err(ctx, `missing-number division must blank the dividend (got slot "${ex.blankSlot}")`);
+      }
+      // Explorer division: the missing operand is the integer dividend.
+      if (ageBand !== '11-12' && !Number.isInteger(ex.correctAnswer)) {
+        err(ctx, `missing-number explorer division non-integer answer ${ex.correctAnswer}`);
+      }
+    }
+    return;
+  }
+
+  // ---- build-equation: result shown; child fills 2 operand slots from a tray
+  if (ex.type === 'build-equation') {
+    if (ex.operator !== OP_SYMBOL[operation]) {
+      err(ctx, `build-equation uses "${ex.operator}", expected "${OP_SYMBOL[operation]}"`);
+    }
+    if (ex.slots !== 2) err(ctx, `build-equation slots ${ex.slots} != 2`);
+    if (!Array.isArray(ex.solution) || ex.solution.length !== 2) {
+      err(ctx, `build-equation solution must be length-2 array, got ${JSON.stringify(ex.solution)}`);
+      return;
+    }
+    if (!Array.isArray(ex.tray) || ex.tray.length !== 5) {
+      err(ctx, `build-equation tray must be length-5 array, got ${JSON.stringify(ex.tray)}`);
+      return;
+    }
+    if (typeof ex.result !== 'number' || !Number.isFinite(ex.result)) {
+      err(ctx, `build-equation result not finite: ${JSON.stringify(ex.result)}`);
+      return;
+    }
+    for (const tile of ex.tray) {
+      if (typeof tile !== 'number' || !Number.isFinite(tile) || tile < 0) {
+        err(ctx, `build-equation tray has invalid tile ${JSON.stringify(tile)} (${JSON.stringify(ex.tray)})`);
+      }
+    }
+    // Solution actually produces the result.
+    const [sa, sb] = ex.solution;
+    if (Math.abs(applyOp(sa, ex.operator, sb) - ex.result) > 0.005) {
+      err(ctx, `build-equation solution [${sa}, ${sb}] does not produce ${ex.result}`);
+    }
+    // Both solution operands present in the tray.
+    if (!ex.tray.includes(sa) || !ex.tray.includes(sb)) {
+      err(ctx, `build-equation solution [${sa}, ${sb}] not both in tray ${JSON.stringify(ex.tray)}`);
+    }
+    // No unintended second solution. We reason over DISTINCT tray POSITIONS (a
+    // child cannot place one tile in both slots), matching the real interaction.
+    // Find the position pair that realises the intended solution, then assert no
+    // OTHER distinct position pair produces the result. The solution's swap is
+    // also accepted for commutative ops (it is the same fact).
+    const commutative = ex.operator === '+' || ex.operator === '×';
+    const isSolutionValues = (x, y) =>
+      (x === sa && y === sb) || (commutative && x === sb && y === sa);
+    for (let i = 0; i < ex.tray.length; i++) {
+      for (let j = 0; j < ex.tray.length; j++) {
+        if (i === j) continue;
+        const x = ex.tray[i];
+        const y = ex.tray[j];
+        if (isSolutionValues(x, y)) continue; // intended solution (and swap)
+        if (Math.abs(applyOp(x, ex.operator, y) - ex.result) < 0.005) {
+          err(ctx, `build-equation unintended solution ${x} ${ex.operator} ${y} = ${ex.result} (tray ${JSON.stringify(ex.tray)})`);
+        }
+      }
+    }
+    // Subtraction/division order fixed: no negative result.
+    if ((operation === 'subtraction' || operation === 'division') && sa < sb) {
+      err(ctx, `build-equation non-commutative solution out of order [${sa}, ${sb}] ("${operation}")`);
+    }
+    if (ex.result < 0) err(ctx, `build-equation negative result ${ex.result}`);
+    const capB = maxAnswer(operation, ageBand);
+    if (ex.result > capB) {
+      err(ctx, `build-equation result ${ex.result} exceeds max ${capB}`);
+    }
+    // Tray tiles hold operands; for division the dividend tile is bounded by
+    // factorMax² (maxOperand), not the quotient cap.
+    const capTile = maxOperand(operation, ageBand);
+    for (const tile of ex.tray) {
+      if (tile > capTile) {
+        err(ctx, `build-equation tray tile ${tile} exceeds operand max ${capTile} (${JSON.stringify(ex.tray)})`);
+      }
+    }
     return;
   }
 
