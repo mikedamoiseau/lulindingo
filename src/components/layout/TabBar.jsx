@@ -24,6 +24,15 @@ export default function TabBar() {
         <span>Progress</span>
       </NavLink>
       <NavLink
+        to="/den"
+        className={({ isActive }) => `${styles.tab} ${isActive ? styles.active : ''}`}
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 3L3 10v11h6v-6h6v6h6V10L12 3z" />
+        </svg>
+        <span>Den</span>
+      </NavLink>
+      <NavLink
         to="/grown-ups"
         className={({ isActive }) => `${styles.tab} ${styles.grownUps} ${isActive ? styles.active : ''}`}
         aria-label="Grown-ups"
