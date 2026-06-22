@@ -81,4 +81,22 @@ describe('exerciseToSpeech', () => {
     expect(exerciseToSpeech(null)).toBe('');
     expect(exerciseToSpeech({ type: 'mystery', equation: '1 + 1 = []' })).toBe('1 plus 1 equals what');
   });
+
+  it('missing-number reads the operand blank as "what"', () => {
+    const ex = { type: 'missing-number', equation: '7 + [] = 15', correctAnswer: 8 };
+    expect(exerciseToSpeech(ex)).toBe('7 plus what equals 15');
+  });
+
+  it('build-equation describes the goal and tiles', () => {
+    const ex = {
+      type: 'build-equation',
+      operator: '×',
+      result: 24,
+      slots: 2,
+      solution: [6, 4],
+      tray: [6, 4, 3, 9, 8],
+      correctAnswer: 24,
+    };
+    expect(exerciseToSpeech(ex)).toBe('Build an equation that times to 24. Tiles: 6, 4, 3, 9, or 8.');
+  });
 });

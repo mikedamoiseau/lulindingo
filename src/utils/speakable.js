@@ -81,6 +81,13 @@ export function exerciseToSpeech(exercise) {
     return opts ? `${rows} Options: ${opts}.` : rows;
   }
 
+  // Build-the-Equation has no equation string — describe the goal and tiles.
+  if (exercise.type === 'build-equation' && Array.isArray(exercise.tray)) {
+    const op = OPERATOR_WORDS[exercise.operator] ?? exercise.operator;
+    const tiles = optionsToSpeech(exercise.tray);
+    return `Build an equation that ${op} to ${exercise.result}. Tiles: ${tiles}.`;
+  }
+
   const eq = equationToSpeech(exercise.equation);
 
   if (exercise.type === 'select-answer' && Array.isArray(exercise.options)) {

@@ -1,0 +1,109 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.instruction {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  padding: var(--space-md) var(--space-lg);
+}
+
+.instructionRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+.equation {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  color: var(--blue);
+}
+
+/* Drop-target slot — same look as the "fill me" blank in the other exercises. */
+.slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  height: 72px;
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-md);
+  border: 3px dashed var(--blue);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: var(--text-3xl);
+  font-weight: 800;
+}
+
+.slotFilled {
+  border-style: solid;
+}
+
+.operator,
+.equals {
+  color: var(--blue);
+}
+
+.result {
+  color: var(--text-primary);
+}
+
+.tray {
+  padding: 0 var(--space-lg) var(--space-md);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+  gap: var(--space-sm);
+}
+
+.tile {
+  min-height: 56px;
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  text-align: center;
+}
+
+.tile:not(:disabled):hover {
+  border-color: var(--text-secondary);
+}
+
+/* Used tiles stay in the DOM for layout animation but are inert. */
+.tileUsed {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.checkArea {
+  padding: var(--space-md) var(--space-lg);
+}
+
+.checkButton {
+  width: 100%;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--border);
+  color: var(--text-secondary);
+  font-size: var(--text-base);
+  font-weight: 800;
+  letter-spacing: 1px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.checkButton:not(:disabled) {
+  background: var(--green);
+  color: var(--text-primary);
+}
