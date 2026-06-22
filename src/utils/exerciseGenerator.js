@@ -10,7 +10,10 @@
  *   type-answer    { type, equation, correctAnswer }
  *   select-answer  { type, equation, correctAnswer, options }   // 3 options
  *   follow-pattern { type, equation, correctAnswer, options, pattern } // 2 options
+ *   story-problem  { type, equation, prompt, instruction, correctAnswer }
  */
+
+import { wrapStory, plural } from './storyTemplates.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -22,7 +25,7 @@ const AGE_BAND_MAX = {
   '11-12': 1_000_000,
 };
 
-const EXERCISE_TYPES = ['type-answer', 'select-answer', 'follow-pattern'];
+const EXERCISE_TYPES = ['type-answer', 'select-answer', 'follow-pattern', 'story-problem'];
 
 // ---------------------------------------------------------------------------
 // Seeded-random helpers (plain Math.random — deterministic only in tests via vi.mock)
@@ -154,7 +157,7 @@ function shuffle(arr) {
 // Operation-specific number generators
 // ---------------------------------------------------------------------------
 
-function buildAdditionExercise(exType, rangeMax, tier) {
+function buildAdditionExercise(exType, rangeMax, tier, ageBand) {
   const [lo, hi] = tierWindow(rangeMax, tier);
   // sum ∈ [lo, hi], split into two addends
   const sum = randInt(lo, hi);
@@ -163,10 +166,11 @@ function buildAdditionExercise(exType, rangeMax, tier) {
   const equation = `${a} + ${b} = []`;
   const correctAnswer = sum;
 
-  return buildExerciseForType(exType, equation, correctAnswer, false);
+  return buildExerciseForType(exType, equation, correctAnswer, false,
+    { operation: 'addition', ageBand, a, b });
 }
 
-function buildSubtractionExercise(exType, rangeMax, tier) {
+function buildSubtractionExercise(exType, rangeMax, tier, ageBand) {
   const [lo, hi] = tierWindow(rangeMax, tier);
   // minuend ∈ [lo, hi], ensure result >= 0
   const a = randInt(lo, hi);
@@ -174,7 +178,8 @@ function buildSubtractionExercise(exType, rangeMax, tier) {
   const correctAnswer = a - b;
   const equation = `${a} - ${b} = []`;
 
-  return buildExerciseForType(exType, equation, correctAnswer, false);
+  return buildExerciseForType(exType, equation, correctAnswer, false,
+    { operation: 'subtraction', ageBand, a, b });
 }
 
 function buildMultiplicationExercise(exType, ageBand, tier) {
@@ -185,21 +190,59 @@ function buildMultiplicationExercise(exType, ageBand, tier) {
   const correctAnswer = a * b;
   const equation = `${a} × ${b} = []`;
 
-  return buildExerciseForType(exType, equation, correctAnswer, false);
+  return buildExerciseForType(exType, equation, correctAnswer, false,
+    { operation: 'multiplication', ageBand, a, b });
 }
 
-function buildDivisionExercise(exType, ageBand, tier) {
+function buildDivisionExercise(exType, ageBand, tier, variant) {
+  if (variant === 'remainder') {
+    const factorMax = ageBand === '11-12' ? 1000 : 50;
+    const [lo, hi] = tierWindow(factorMax, tier);
+    let dividend, divisor, quotient, remainder, attempts = 0;
+    do {
+      divisor = randInt(2, Math.max(2, Math.min(12, hi))); // small divisor keeps it kid-friendly
+      dividend = randInt(Math.max(divisor + 1, lo), Math.max(divisor + 1, hi));
+      quotient = Math.floor(dividend / divisor);
+      remainder = dividend % divisor;
+      attempts++;
+    } while (remainder === 0 && attempts < 50);
+    if (remainder === 0) { remainder = 1; dividend = quotient * divisor + 1; } // guaranteed non-zero
+    const correctAnswer = `${quotient} r ${remainder}`;
+    const equation = `${dividend} ÷ ${divisor} = []`;
+    const base = { equation, correctAnswer, isRemainder: true, quotient, remainder, divisor, dividend };
+    // Remainder answers are typed as "q r r", which only the StoryProblem
+    // component's remainder input accepts — TypeTheAnswer's numeric pad cannot
+    // enter the "r". So remainder exercises are ALWAYS story problems, with a
+    // prompt that explicitly asks for both the share and the leftover.
+    const prompt =
+      `Share ${dividend} ${plural(dividend, 'cookie')} equally among ${divisor} ${plural(divisor, 'friend')}. ` +
+      `How many does each friend get, and how many are left over?`;
+    const instruction = 'Type your answer like "3 r 2" (each, then the leftover)';
+    return { type: 'story-problem', ...base, prompt, instruction };
+  }
+
   const isChallenger = ageBand === '11-12';
 
   if (isChallenger) {
-    // Challenger: random dividend and divisor, decimal result rounded to 2dp
     const [lo, hi] = tierWindow(1_000, tier);
+    if (exType === 'story-problem') {
+      // A division story ("how many does each get") implies a whole-number
+      // answer, so build an EXACT division — never a decimal like 17.17 that a
+      // sharing narrative can't represent.
+      const divisor = randInt(2, Math.max(2, Math.min(12, Math.floor(hi / 2) || 2)));
+      const quotient = randInt(Math.max(1, Math.floor(lo / divisor)), Math.max(1, Math.floor(hi / divisor)));
+      const dividend = divisor * quotient;
+      const equation = `${dividend} ÷ ${divisor} = []`;
+      return buildStoryProblem('division', ageBand, dividend, divisor, quotient, equation);
+    }
+    // Challenger: random dividend and divisor, decimal result rounded to 2dp
     const dividend = randInt(Math.max(1, lo), hi);
     const divisor = randInt(1, Math.max(2, Math.floor(hi / 2)));
     const correctAnswer = parseFloat((dividend / divisor).toFixed(2));
     const equation = `${dividend} ÷ ${divisor} = []`;
     const isDecimal = !Number.isInteger(correctAnswer);
-    return buildExerciseForType(exType, equation, correctAnswer, isDecimal);
+    return buildExerciseForType(exType, equation, correctAnswer, isDecimal,
+      { operation: 'division', ageBand, a: dividend, b: divisor });
   } else {
     // Explorer: construct a*b then ask a*b ÷ b → integer result
     const factorMax = 50;
@@ -209,7 +252,8 @@ function buildDivisionExercise(exType, ageBand, tier) {
     const dividend = b * result;
     const correctAnswer = result;
     const equation = `${dividend} ÷ ${b} = []`;
-    return buildExerciseForType(exType, equation, correctAnswer, false);
+    return buildExerciseForType(exType, equation, correctAnswer, false,
+      { operation: 'division', ageBand, a: dividend, b });
   }
 }
 
@@ -217,12 +261,23 @@ function buildDivisionExercise(exType, ageBand, tier) {
 // Route exercise type
 // ---------------------------------------------------------------------------
 
-function buildExerciseForType(exType, equation, correctAnswer, isDecimal) {
+/**
+ * Build a story-problem exercise: a typed-answer variant whose equation is
+ * unchanged but is wrapped in an age-banded narrative `prompt`.
+ */
+function buildStoryProblem(operation, ageBand, a, b, correctAnswer, equation) {
+  const { prompt, instruction } = wrapStory(operation, a, b, correctAnswer, ageBand);
+  return { type: 'story-problem', equation, prompt, instruction, correctAnswer };
+}
+
+function buildExerciseForType(exType, equation, correctAnswer, isDecimal, ctx) {
   switch (exType) {
     case 'type-answer':
       return buildTypeAnswer(equation, correctAnswer);
     case 'select-answer':
       return buildSelectAnswer(equation, correctAnswer, isDecimal);
+    case 'story-problem':
+      return buildStoryProblem(ctx.operation, ctx.ageBand, ctx.a, ctx.b, correctAnswer, equation);
     case 'follow-pattern':
       // Follow-pattern needs a sequence; we'll handle this via the dedicated
       // per-operation follow-pattern builder below.  If we arrive here it means
@@ -339,21 +394,29 @@ const VALID_OPERATIONS = new Set(['addition', 'subtraction', 'multiplication', '
  * @param {string} ageBand    - '6-7' | '8-10' | '11-12'
  * @param {number} tier       - 1–5
  * @param {number} count      - number of exercises to generate
+ * @param {object} [options]   - { variant } — 'remainder' for division remainder mode
  * @returns {Exercise[]}
  */
-export function generateExercises(operation, ageBand, tier, count) {
+export function generateExercises(operation, ageBand, tier, count, options = {}) {
   if (!VALID_OPERATIONS.has(operation)) {
     throw new Error(
       `Unknown operation: "${operation}". Valid operations are: ${[...VALID_OPERATIONS].join(', ')}`
     );
   }
 
+  const { variant } = options; // 'remainder' for the division remainder mode
   const rangeMax = AGE_BAND_MAX[ageBand] ?? AGE_BAND_MAX['11-12'];
   const exercises = [];
 
   for (let i = 0; i < count; i++) {
-    // Cycle through types: 0→type-answer, 1→select-answer, 2→follow-pattern
-    const exType = EXERCISE_TYPES[i % EXERCISE_TYPES.length];
+    // Cycle through types: 0→type-answer, 1→select-answer, 2→follow-pattern, 3→story-problem
+    let exType = EXERCISE_TYPES[i % EXERCISE_TYPES.length];
+
+    // Remainder division has no pattern representation in v1 — substitute a
+    // typed answer for the follow-pattern slot so the variant stays type+story.
+    if (variant === 'remainder' && exType === 'follow-pattern') {
+      exType = 'type-answer';
+    }
 
     let exercise;
 
@@ -376,16 +439,16 @@ export function generateExercises(operation, ageBand, tier, count) {
     } else {
       switch (operation) {
         case 'addition':
-          exercise = buildAdditionExercise(exType, rangeMax, tier);
+          exercise = buildAdditionExercise(exType, rangeMax, tier, ageBand);
           break;
         case 'subtraction':
-          exercise = buildSubtractionExercise(exType, rangeMax, tier);
+          exercise = buildSubtractionExercise(exType, rangeMax, tier, ageBand);
           break;
         case 'multiplication':
           exercise = buildMultiplicationExercise(exType, ageBand, tier);
           break;
         case 'division':
-          exercise = buildDivisionExercise(exType, ageBand, tier);
+          exercise = buildDivisionExercise(exType, ageBand, tier, variant);
           break;
       }
     }

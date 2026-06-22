@@ -56,6 +56,15 @@ async function solveExercise(page) {
   await page.waitForTimeout(350);
   const checkBtn = page.getByRole('button', { name: 'CHECK' });
 
+  // story-problem: the narrative hides the bare equation, which is exposed via a
+  // visually-hidden element for assistive tech (and us). Read it, compute, type.
+  const storyEq = area.getByTestId('story-equation');
+  if (await storyEq.count()) {
+    const answer = computeFromText(await storyEq.innerText());
+    await typeNumber(page, answer);
+    return true;
+  }
+
   // follow-pattern: a table whose blank row shows "???". The question is that
   // row's expression cell — NOT the first expression in the area text.
   const blankCell = area.locator('[class*="blankCell"]');

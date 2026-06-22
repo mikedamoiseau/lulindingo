@@ -26,8 +26,14 @@ const { default: units } = await import(
 
 const AGE_BANDS = ['6-7', '8-10', '11-12'];
 const TIERS = [1, 2, 3, 4, 5];
-const VALID_TYPES = ['type-answer', 'select-answer', 'follow-pattern'];
+const VALID_TYPES = ['type-answer', 'select-answer', 'follow-pattern', 'story-problem'];
 const SAMPLES_PER_COMBO = 300;
+
+// Parse a remainder answer string "3 r 2" / "3r2" / "3 R 2" → { q, r } or null.
+function parseRemainderStr(s) {
+  const m = typeof s === 'string' && s.match(/^(\d+)\s*r\s*(\d+)$/i);
+  return m ? { q: +m[1], r: +m[2] } : null;
+}
 
 // Max reachable correct answer, mirroring the constants in exerciseGenerator.
 // The cap is operation-specific: add/sub follow AGE_BAND_MAX, while mul/div use
@@ -97,6 +103,25 @@ function validateExercise(ctx, operation, ageBand, ex) {
   }
   if (parsed.operator !== OP_SYMBOL[operation]) {
     err(ctx, `equation "${ex.equation}" uses "${parsed.operator}", expected "${OP_SYMBOL[operation]}"`);
+  }
+
+  // Remainder exercises carry a STRING answer "q r r"; validate them separately
+  // and return BEFORE the finite-number guard below (which would otherwise flag
+  // the string as malformed).
+  if (ex.isRemainder) {
+    const parsedR = parseRemainderStr(ex.correctAnswer);
+    if (!parsedR) {
+      err(ctx, `remainder answer not "q r r": ${JSON.stringify(ex.correctAnswer)}`);
+      return;
+    }
+    if (parsedR.q !== ex.quotient || parsedR.r !== ex.remainder)
+      err(ctx, `remainder fields mismatch answer "${ex.correctAnswer}" (q=${ex.quotient}, r=${ex.remainder})`);
+    if (!(parsedR.r > 0 && parsedR.r < ex.divisor))
+      err(ctx, `remainder ${parsedR.r} not in (0, divisor=${ex.divisor})`);
+    if (parsedR.q * ex.divisor + parsedR.r !== ex.dividend)
+      err(ctx, `remainder arithmetic wrong: ${parsedR.q}*${ex.divisor}+${parsedR.r} != ${ex.dividend}`);
+    if (parsed.operator !== '÷') err(ctx, `remainder equation bad: "${ex.equation}"`);
+    return;
   }
 
   // correctAnswer must be a finite number before any numeric/string checks below
@@ -182,6 +207,13 @@ function validateExercise(ctx, operation, ageBand, ex) {
       }
     }
   }
+
+  // story-problem (non-remainder): a numeric answer + a narrative prompt. The
+  // equation-parse and arithmetic checks above already cover its correctness.
+  if (ex.type === 'story-problem') {
+    if (typeof ex.prompt !== 'string' || ex.prompt.trim() === '')
+      err(ctx, `story-problem missing prompt ("${ex.equation}")`);
+  }
 }
 
 let totalChecked = 0;
@@ -205,6 +237,24 @@ for (const unit of units) {
         validateExercise(ctx, operation, ageBand, ex);
         totalChecked++;
       }
+    }
+  }
+}
+
+// Dedicated sweep for the division remainder variant (Explorer + Challenger).
+for (const ageBand of ['8-10', '11-12']) {
+  for (const tier of TIERS) {
+    const ctx = `division(remainder) / ${ageBand} / tier ${tier}`;
+    let exercises;
+    try {
+      exercises = generateExercises('division', ageBand, tier, SAMPLES_PER_COMBO, { variant: 'remainder' });
+    } catch (e) {
+      err(ctx, `generateExercises threw: ${e.message}`);
+      continue;
+    }
+    for (const ex of exercises) {
+      validateExercise(ctx, 'division', ageBand, ex);
+      totalChecked++;
     }
   }
 }

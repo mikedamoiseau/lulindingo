@@ -18,6 +18,8 @@ import TypeTheAnswer from './exercises/TypeTheAnswer';
 import SelectTheAnswer from './exercises/SelectTheAnswer';
 import FollowThePattern from './exercises/FollowThePattern';
 import EstimationChallenge from './exercises/EstimationChallenge';
+import StoryProblem from './exercises/StoryProblem';
+import { matchesAnswer } from '../../utils/answerMatch';
 import styles from './LessonEngine.module.css';
 
 export default function LessonEngine() {
@@ -82,7 +84,7 @@ export default function LessonEngine() {
         ? currentExercise.estimationMode === 'bucket'
           ? answer.value === currentExercise.correctBucket
           : isWithinTolerance(answer.value, currentExercise.correctAnswer)
-        : answer === currentExercise.correctAnswer;
+        : matchesAnswer(currentExercise, answer);
 
       if (isCorrect) {
         if (!isPractice) {
@@ -100,7 +102,9 @@ export default function LessonEngine() {
       } else {
         // Estimation gives no retry — "close" is already the reward (D6).
         const canRetry =
-          !currentExercise.estimation && currentExercise.type === 'type-answer' && !retryUsed;
+          !currentExercise.estimation &&
+          (currentExercise.type === 'type-answer' || currentExercise.type === 'story-problem') &&
+          !retryUsed;
         if (canRetry) {
           setFeedback({ isRetry: true });
           setRetryUsed(true);
@@ -210,6 +214,8 @@ export default function LessonEngine() {
         return <SelectTheAnswer key={exerciseIndex} {...props} />;
       case 'follow-pattern':
         return <FollowThePattern key={exerciseIndex} {...props} />;
+      case 'story-problem':
+        return <StoryProblem key={exerciseIndex} {...props} />;
       default:
         return <div>Unknown exercise type: {currentExercise.type}</div>;
     }
