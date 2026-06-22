@@ -73,3 +73,78 @@ db.version(5).stores({
     if (user.denLayout == null) user.denLayout = createDefaultLayout();
   });
 });
+
+// v6: Family Profiles. Multiple children share one device, each with an
+// ISOLATED progress namespace. The four per-child tables are re-keyed by a
+// compound primary key `[userId+...]` (plus a `userId` index for scoped
+// queries), and a singleton `meta` table tracks the active profile so the
+// launch picker survives reloads.
+//
+// The upgrade is DATA-PRESERVING: any existing single-child install becomes
+// "child #1" with nothing lost. We resolve the legacy user (users[0] if any),
+// stamp `userId = legacyId` onto EVERY existing row of progress, streakHistory,
+// dailyQuests, and facts, and set meta.activeUserId so the legacy child lands
+// straight in the app (no picker).
+//
+// Dexie cannot change a table's primary key in place ("Not yet support for
+// changing primary key"). The supported path is to DELETE the old tables and
+// RECREATE them with the new key across two version steps, carrying the data
+// through a transient `legacyBackup` table:
+//   v6 — read the four old tables, stash every row (stamped with userId) into
+//        `legacyBackup`, then delete the old tables (`null`).
+//   v7 — recreate the four tables with their compound keys, restore the rows
+//        from `legacyBackup`, set meta.activeUserId, then drop `legacyBackup`.
+db.version(6).stores({
+  users: '++id, name',
+  units: 'id, moduleId, topic, order',
+  lessons: 'id, unitId, order',
+  progress: null,
+  streakHistory: null,
+  dailyQuests: null,
+  facts: null,
+  meta: '&id',
+  legacyBackup: '++id',
+}).upgrade(async (tx) => {
+  const users = await tx.table('users').toArray();
+  const legacyId = users.length > 0 ? users[0].id : null;
+  await tx.table('meta').put({ id: 'app', activeUserId: legacyId });
+
+  if (legacyId == null) return; // fresh install — nothing to carry forward
+
+  // The old tables still exist (and hold their old-keyed rows) until this
+  // version's schema is applied; read them here, then they are dropped.
+  const stash = async (table, source) => {
+    const rows = await tx.table(source).toArray();
+    if (rows.length === 0) return;
+    await tx.table('legacyBackup').bulkAdd(
+      rows.map((r) => ({ table, row: { ...r, userId: legacyId } }))
+    );
+  };
+  await stash('progress', 'progress');
+  await stash('streakHistory', 'streakHistory');
+  await stash('dailyQuests', 'dailyQuests');
+  await stash('facts', 'facts');
+});
+
+// v7: recreate the per-child tables with compound keys and restore the stashed
+// rows, then discard the transient backup table.
+db.version(7).stores({
+  users: '++id, name',
+  units: 'id, moduleId, topic, order',
+  lessons: 'id, unitId, order',
+  progress: '[userId+lessonId], userId, completed',
+  streakHistory: '[userId+date], userId',
+  dailyQuests: '[userId+date], userId',
+  facts: '[userId+sig], userId, operation, box, dueAt',
+  meta: '&id',
+  legacyBackup: null,
+}).upgrade(async (tx) => {
+  const backup = await tx.table('legacyBackup').toArray();
+  const byTable = { progress: [], streakHistory: [], dailyQuests: [], facts: [] };
+  for (const entry of backup) {
+    if (byTable[entry.table]) byTable[entry.table].push(entry.row);
+  }
+  for (const [table, rows] of Object.entries(byTable)) {
+    if (rows.length > 0) await tx.table(table).bulkPut(rows);
+  }
+});
