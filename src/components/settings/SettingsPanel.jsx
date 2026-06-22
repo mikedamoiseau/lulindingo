@@ -85,6 +85,34 @@ export default function SettingsPanel() {
             </div>
 
             <div className={styles.section}>
+              <h3 className={styles.sectionTitle}>Read Aloud</h3>
+              <label className={styles.toggleRow}>
+                <span className={styles.optLabel}>Speak questions aloud</span>
+                <input
+                  type="checkbox"
+                  checked={user.readAloud ?? false}
+                  onChange={(e) => updateSettings({ readAloud: e.target.checked })}
+                />
+              </label>
+              {(user.readAloud ?? false) && (
+                <div className={styles.options}>
+                  <button
+                    className={`${styles.option} ${(user.speechRate ?? 1.0) === 1.0 ? styles.selected : ''}`}
+                    onClick={() => updateSettings({ speechRate: 1.0 })}
+                  >
+                    <span className={styles.optLabel}>Normal speed</span>
+                  </button>
+                  <button
+                    className={`${styles.option} ${(user.speechRate ?? 1.0) === 0.7 ? styles.selected : ''}`}
+                    onClick={() => updateSettings({ speechRate: 0.7 })}
+                  >
+                    <span className={styles.optLabel}>Slow speed</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className={styles.section}>
               <h3 className={styles.sectionTitle}>Reset Progress</h3>
               {!confirmReset ? (
                 <button className={styles.resetBtn} onClick={() => setConfirmReset(true)}>
