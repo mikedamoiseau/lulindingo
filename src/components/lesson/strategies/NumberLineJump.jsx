@@ -4,6 +4,9 @@ import styles from '../StrategyView.module.css';
 
 export default function NumberLineJump({ start, jumpBack, end }) {
   const reduce = useReducedMotion();
+  // buildStrategy never emits start<=0, but guard against a divide-by-zero
+  // marker position if it ever did.
+  if (!start || start <= 0) return null;
   const ticks = Array.from({ length: start + 1 }, (_, i) => i);
   return (
     <div className={styles.numberLine}>

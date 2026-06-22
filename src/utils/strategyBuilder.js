@@ -40,11 +40,18 @@ const isWhole = (n) => Number.isInteger(n);
  * @param {string} ageBand   - reserved for future age tuning; caps already cover it
  * @returns descriptor (tagged union, always serializable)
  */
+// The operator glyph each operation must show. Guards against an
+// operation/equation mismatch building a confidently-wrong worked example.
+const OP_GLYPH = { addition: '+', subtraction: '-', multiplication: '×', division: '÷' };
+
 export function buildStrategy(equation, operation /*, ageBand */) {
   const ops = parseOperands(equation);
   if (!ops) return NONE('unparseable');
   const { a, b } = ops;
   if (!isWhole(a) || !isWhole(b)) return NONE('non-integer-operand');
+  if (OP_GLYPH[operation] && ops.operator !== OP_GLYPH[operation]) {
+    return NONE('operator-mismatch');
+  }
 
   switch (operation) {
     case 'addition': {
@@ -57,6 +64,9 @@ export function buildStrategy(equation, operation /*, ageBand */) {
     case 'subtraction': {
       const end = a - b;
       if (end < 0) return NONE('negative');
+      // A number line needs a positive span; "0 - 0" has nothing to draw and
+      // would divide by zero when positioning the marker.
+      if (a === 0) return NONE('zero-start');
       if (a > CAPS.subStart) return NONE('too-large');
       return { kind: 'number-line', start: a, jumpBack: b, end };
     }

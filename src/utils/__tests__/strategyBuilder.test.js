@@ -86,4 +86,15 @@ describe('buildStrategy — guards', () => {
     const s = buildStrategy('5 + 3 = []', 'addition', '6-7');
     expect(JSON.parse(JSON.stringify(s))).toEqual(s);
   });
+  it('returns none for zero-start subtraction (no number line to draw)', () => {
+    const s = buildStrategy('0 - 0 = []', 'subtraction', '6-7');
+    expect(s.kind).toBe('none');
+    expect(s.reason).toBe('zero-start');
+  });
+  it('returns none when operation disagrees with the equation glyph', () => {
+    // operation says addition but the equation is a subtraction
+    const s = buildStrategy('5 - 3 = []', 'addition', '6-7');
+    expect(s.kind).toBe('none');
+    expect(s.reason).toBe('operator-mismatch');
+  });
 });
