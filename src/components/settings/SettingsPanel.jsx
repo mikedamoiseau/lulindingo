@@ -25,13 +25,24 @@ export default function SettingsPanel() {
 
   if (!user) return null;
 
+  // Nuclear option: wipe the WHOLE device (every child + all metadata). Distinct
+  // from the per-child age-band reset above (which only touches the active
+  // child's progress). Clears the family tables too so nothing is orphaned.
   const handleReset = async () => {
     await db.users.clear();
     await db.progress.clear();
     await db.streakHistory.clear();
+    await db.dailyQuests.clear();
+    await db.facts.clear();
+    await db.meta.clear();
     await db.units.clear();
     await db.lessons.clear();
     window.location.reload();
+  };
+
+  const handleManageProfiles = () => {
+    setOpen(false);
+    window.dispatchEvent(new Event('open-profiles'));
   };
 
   return (
@@ -110,6 +121,18 @@ export default function SettingsPanel() {
                   </button>
                 </div>
               )}
+            </div>
+
+            <div className={styles.section}>
+              <h3 className={styles.sectionTitle}>Family Profiles</h3>
+              <button
+                className={styles.option}
+                onClick={handleManageProfiles}
+                data-testid="manage-profiles"
+              >
+                <span className={styles.optLabel}>Manage profiles</span>
+                <span className={styles.optDesc}>Add or remove a child</span>
+              </button>
             </div>
 
             <div className={styles.section}>

@@ -1,13 +1,18 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db/database';
+import useGameStore from '../../stores/useGameStore';
 
 export default function UnitBadges({ styles }) {
+  const activeUserId = useGameStore((s) => s.user?.id);
   const units = useLiveQuery(
     () => db.units.where('moduleId').equals('math').sortBy('order'),
     []
   );
   const lessons = useLiveQuery(() => db.lessons.toArray(), []);
-  const progress = useLiveQuery(() => db.progress.toArray(), []);
+  const progress = useLiveQuery(
+    () => (activeUserId == null ? [] : db.progress.where('userId').equals(activeUserId).toArray()),
+    [activeUserId]
+  );
 
   if (!units || !lessons || !progress) return null;
 

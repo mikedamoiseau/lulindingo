@@ -14,13 +14,17 @@ import styles from './QuestBoard.module.css';
 export default function QuestBoard() {
   const ensureTodayQuests = useGameStore((s) => s.ensureTodayQuests);
   const claimQuestReward = useGameStore((s) => s.claimQuestReward);
+  const activeUserId = useGameStore((s) => s.user?.id);
 
   useEffect(() => {
     ensureTodayQuests();
-  }, [ensureTodayQuests]);
+  }, [ensureTodayQuests, activeUserId]);
 
   const today = getLocalDateString();
-  const row = useLiveQuery(() => db.dailyQuests.get(today), [today]);
+  const row = useLiveQuery(
+    () => (activeUserId == null ? undefined : db.dailyQuests.get([activeUserId, today])),
+    [today, activeUserId]
+  );
 
   if (!row) return null;
 

@@ -1,12 +1,21 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 import { db } from '../../db/database';
+import { setActiveUserId, getActiveUserId } from '../../db/profileMeta';
 import useGameStore, { getDueFactCount } from '../useGameStore';
 import { getLocalDateString } from '../../utils/streakTracker';
 import { createDefaultLayout, acornBalance } from '../../utils/denEconomy';
 
 function getStore() {
   return useGameStore.getState();
+}
+
+// Seed a user row AND mark it active, mirroring how a real install resolves the
+// active profile. Returns the new user id.
+async function seedActiveUser(row) {
+  const id = await db.users.add(row);
+  await setActiveUserId(id);
+  return id;
 }
 
 function yesterdayString() {
@@ -30,8 +39,10 @@ beforeEach(async () => {
   await db.lessons.clear();
   await db.dailyQuests.clear();
   await db.facts.clear();
+  await db.meta.clear();
   useGameStore.setState({
     user: null,
+    profiles: [],
     isLoaded: false,
     lessonXp: 0,
     lessonCorrect: 0,
@@ -70,7 +81,7 @@ describe('loadUser', () => {
   });
 
   it('loads existing user', async () => {
-    await db.users.add({
+    await seedActiveUser({
       name: 'Existing',
       totalXp: 100,
       hearts: 10,
@@ -90,7 +101,7 @@ describe('loadUser', () => {
 
   it('recalculates hearts on load if time elapsed', async () => {
     const fortyMinAgo = new Date(Date.now() - 40 * 60 * 1000);
-    await db.users.add({
+    await seedActiveUser({
       name: 'LowHearts',
       totalXp: 0,
       hearts: 3,
@@ -106,7 +117,7 @@ describe('loadUser', () => {
   });
 
   it('resets streak if broken on load', async () => {
-    await db.users.add({
+    await seedActiveUser({
       name: 'BrokenStreak',
       totalXp: 0,
       hearts: 10,
@@ -122,7 +133,7 @@ describe('loadUser', () => {
   });
 
   it('preserves streak if last active yesterday', async () => {
-    await db.users.add({
+    await seedActiveUser({
       name: 'ValidStreak',
       totalXp: 0,
       hearts: 10,
@@ -139,7 +150,7 @@ describe('loadUser', () => {
 
   it('persists heart refill to DB', async () => {
     const fortyMinAgo = new Date(Date.now() - 40 * 60 * 1000);
-    const id = await db.users.add({
+    const id = await seedActiveUser({
       name: 'RefillPersist',
       totalXp: 0,
       hearts: 3,
@@ -328,7 +339,7 @@ describe('updateStreak', () => {
   it('creates streakHistory record', async () => {
     await getStore().updateStreak();
     const today = getLocalDateString();
-    const record = await db.streakHistory.get(today);
+    const record = await db.streakHistory.get([getStore().user.id, today]);
     expect(record).not.toBeNull();
     expect(record.date).toBe(today);
   });
@@ -341,7 +352,7 @@ describe('completeLesson', () => {
 
   it('creates progress with 3 stars for 90%+ accuracy', async () => {
     await getStore().completeLesson('lesson-1', 95);
-    const progress = await db.progress.get('lesson-1');
+    const progress = await db.progress.get([getStore().user.id, 'lesson-1']);
     expect(progress.completed).toBe(true);
     expect(progress.stars).toBe(3);
     expect(progress.bestAccuracy).toBe(95);
@@ -349,20 +360,20 @@ describe('completeLesson', () => {
 
   it('creates progress with 2 stars for 70-89% accuracy', async () => {
     await getStore().completeLesson('lesson-2', 75);
-    const progress = await db.progress.get('lesson-2');
+    const progress = await db.progress.get([getStore().user.id, 'lesson-2']);
     expect(progress.stars).toBe(2);
   });
 
   it('creates progress with 1 star for <70% accuracy', async () => {
     await getStore().completeLesson('lesson-3', 50);
-    const progress = await db.progress.get('lesson-3');
+    const progress = await db.progress.get([getStore().user.id, 'lesson-3']);
     expect(progress.stars).toBe(1);
   });
 
   it('does not downgrade stars on replay', async () => {
     await getStore().completeLesson('lesson-replay', 95); // 3 stars
     await getStore().completeLesson('lesson-replay', 50); // Would be 1 star
-    const progress = await db.progress.get('lesson-replay');
+    const progress = await db.progress.get([getStore().user.id, 'lesson-replay']);
     expect(progress.stars).toBe(3); // Kept max
     expect(progress.bestAccuracy).toBe(95); // Kept max
   });
@@ -370,14 +381,14 @@ describe('completeLesson', () => {
   it('increments attempts on replay', async () => {
     await getStore().completeLesson('lesson-attempts', 80);
     await getStore().completeLesson('lesson-attempts', 90);
-    const progress = await db.progress.get('lesson-attempts');
+    const progress = await db.progress.get([getStore().user.id, 'lesson-attempts']);
     expect(progress.attempts).toBe(2);
   });
 
   it('sets completedAt timestamp', async () => {
     const before = Date.now();
     await getStore().completeLesson('lesson-ts', 80);
-    const progress = await db.progress.get('lesson-ts');
+    const progress = await db.progress.get([getStore().user.id, 'lesson-ts']);
     expect(new Date(progress.completedAt).getTime()).toBeGreaterThanOrEqual(before);
   });
 });
@@ -531,7 +542,7 @@ describe('daily quests', () => {
   it('ensureTodayQuests creates one row keyed by today', async () => {
     await getStore().ensureTodayQuests();
     const today = getLocalDateString();
-    const row = await db.dailyQuests.get(today);
+    const row = await db.dailyQuests.get([getStore().user.id, today]);
     expect(row).toBeDefined();
     expect(row.questIds).toHaveLength(3);
     expect(row.claimed).toBe(false);
@@ -542,7 +553,7 @@ describe('daily quests', () => {
     await getStore().ensureTodayQuests();
     await getStore().bumpQuestStats((row) => ({ answerCount: row.answerCount + 5 }));
     await getStore().ensureTodayQuests();
-    const row = await db.dailyQuests.get(getLocalDateString());
+    const row = await db.dailyQuests.get([getStore().user.id, getLocalDateString()]);
     expect(row.answerCount).toBe(5);
   });
 
@@ -554,7 +565,7 @@ describe('daily quests', () => {
     getStore().recordAnswer(true, 'multiplication');
     // allow async DB writes to settle
     await new Promise((r) => setTimeout(r, 20));
-    const row = await db.dailyQuests.get(getLocalDateString());
+    const row = await db.dailyQuests.get([getStore().user.id, getLocalDateString()]);
     expect(row.answerCount).toBe(4);
     expect(row.answerByOperation.multiplication).toBe(4);
     expect(row.bestStreakInSession).toBe(2); // best run was 2 before the wrong answer
@@ -563,7 +574,7 @@ describe('daily quests', () => {
   it('completeLesson bumps lessonCount and bestLessonStars (non-practice)', async () => {
     await getStore().ensureTodayQuests();
     await getStore().completeLesson('math-addition-lesson-1', 95); // 95% → 3 stars
-    const row = await db.dailyQuests.get(getLocalDateString());
+    const row = await db.dailyQuests.get([getStore().user.id, getLocalDateString()]);
     expect(row.lessonCount).toBe(1);
     expect(row.bestLessonStars).toBe(3);
   });
@@ -571,7 +582,7 @@ describe('daily quests', () => {
   it('completeLesson skips quest accounting in practice mode', async () => {
     await getStore().ensureTodayQuests();
     await getStore().completeLesson('math-addition-lesson-1', 95, true);
-    const row = await db.dailyQuests.get(getLocalDateString());
+    const row = await db.dailyQuests.get([getStore().user.id, getLocalDateString()]);
     expect(row.lessonCount).toBe(0);
     expect(row.bestLessonStars).toBe(0);
   });
@@ -582,7 +593,7 @@ describe('daily quests', () => {
     expect(before.claimed).toBe(false); // not all done
 
     // Force all quests complete by cranking every metric.
-    await db.dailyQuests.update(getLocalDateString(), {
+    await db.dailyQuests.update([getStore().user.id, getLocalDateString()], {
       answerCount: 999,
       answerByOperation: { addition: 999, subtraction: 999, multiplication: 999, division: 999 },
       bestStreakInSession: 999,
@@ -597,7 +608,7 @@ describe('daily quests', () => {
     const second = await getStore().claimQuestReward();
     expect(second.alreadyClaimed).toBe(true); // idempotent
 
-    const row = await db.dailyQuests.get(getLocalDateString());
+    const row = await db.dailyQuests.get([getStore().user.id, getLocalDateString()]);
     expect(row.claimed).toBe(true);
     // reward applied at most once (heart up by 1 unless already at MAX)
     const heartsAfter = getStore().user.hearts;
@@ -606,7 +617,7 @@ describe('daily quests', () => {
 
   it('claimQuestReward grants exactly once under a concurrent double-tap', async () => {
     await getStore().ensureTodayQuests();
-    await db.dailyQuests.update(getLocalDateString(), {
+    await db.dailyQuests.update([getStore().user.id, getLocalDateString()], {
       answerCount: 999,
       answerByOperation: { addition: 999, subtraction: 999, multiplication: 999, division: 999 },
       bestStreakInSession: 999,
@@ -634,7 +645,7 @@ describe('daily quests', () => {
     getStore().recordAnswer(true, 'multiplication', true); // isPractice = true
     getStore().recordAnswer(true, 'multiplication', true);
     await getStore()._questWriteQueue;
-    const row = await db.dailyQuests.get(getLocalDateString());
+    const row = await db.dailyQuests.get([getStore().user.id, getLocalDateString()]);
     expect(row.answerCount).toBe(0);
   });
 });
@@ -661,7 +672,7 @@ describe('fact vault (recordAnswer threading)', () => {
       correctAnswer: 56,
     });
     await getStore()._factWriteQueue;
-    const fact = await db.facts.get('7x8');
+    const fact = await db.facts.get([getStore().user.id, '7x8']);
     expect(fact).toBeDefined();
     expect(fact.box).toBe(1);
     expect(fact.seen).toBe(1);
@@ -674,7 +685,7 @@ describe('fact vault (recordAnswer threading)', () => {
     await getStore()._factWriteQueue;
     getStore().recordAnswer(false, 'multiplication', false, ex);
     await getStore()._factWriteQueue;
-    const fact = await db.facts.get('7x8');
+    const fact = await db.facts.get([getStore().user.id, '7x8']);
     expect(fact.seen).toBe(2);
     expect(fact.box).toBe(0); // 1 → max(1-2,0) = 0
     const tomorrow = new Date();
@@ -699,7 +710,7 @@ describe('fact vault (recordAnswer threading)', () => {
       correctAnswer: 54,
     });
     await getStore()._factWriteQueue;
-    expect(await db.facts.get('6x9')).toBeDefined();
+    expect(await db.facts.get([getStore().user.id, '6x9'])).toBeDefined();
   });
 
   it('honours trackFacts:false (placement diagnostic stays vault-free)', async () => {
@@ -721,9 +732,9 @@ describe('fact vault (recordAnswer threading)', () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     await db.facts.bulkPut([
-      { sig: 'a', operation: 'addition', box: 0, dueAt: getLocalDateString(yesterday) },
-      { sig: 'b', operation: 'addition', box: 1, dueAt: today },
-      { sig: 'c', operation: 'addition', box: 2, dueAt: getLocalDateString(tomorrow) },
+      { userId: 1, sig: 'a', operation: 'addition', box: 0, dueAt: getLocalDateString(yesterday) },
+      { userId: 1, sig: 'b', operation: 'addition', box: 1, dueAt: today },
+      { userId: 1, sig: 'c', operation: 'addition', box: 2, dueAt: getLocalDateString(tomorrow) },
     ]);
     const facts = await db.facts.toArray();
     expect(getDueFactCount(facts)).toBe(2);
@@ -853,7 +864,7 @@ describe("Dingo's Den economy", () => {
   });
 
   it('loadUser backfills missing den fields on a pre-den (v1-style) user row', async () => {
-    await db.users.add({
+    await seedActiveUser({
       name: 'Legacy',
       totalXp: 100,
       hearts: 10,
@@ -872,3 +883,155 @@ describe("Dingo's Den economy", () => {
     expect(user.denLayout.slots.sky).toBe('sky-day');
   });
 });
+
+describe('family profiles', () => {
+  beforeEach(async () => {
+    const { seedDatabase } = await import('../../db/seed.js');
+    await seedDatabase();
+  });
+
+  it('createUser stamps progress.userId on skip rows and sets the new user active', async () => {
+    // 11-12 skips addition + subtraction entirely, guaranteeing skip rows.
+    await getStore().createUser('Active', '11-12');
+    const { user } = getStore();
+    expect(await getActiveUserId()).toBe(user.id);
+    const rows = await db.progress.where('userId').equals(user.id).toArray();
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) expect(r.userId).toBe(user.id);
+    // profiles list is refreshed
+    expect(getStore().profiles.map((p) => p.id)).toContain(user.id);
+  });
+
+  it('keeps two children isolated — A completing a lesson does not appear for B', async () => {
+    await getStore().createUser('ChildA', '8-10');
+    const a = getStore().user.id;
+    await getStore().completeLesson('math-addition-lesson-3', 100);
+
+    await getStore().createUser('ChildB', '8-10');
+    const b = getStore().user.id;
+    expect(b).not.toBe(a);
+
+    // B is now active; B has no record of A's completed lesson.
+    const bRow = await db.progress.get([b, 'math-addition-lesson-3']);
+    expect(bRow).toBeUndefined();
+
+    // A's row is intact and scoped to A.
+    const aRow = await db.progress.get([a, 'math-addition-lesson-3']);
+    expect(aRow).toBeDefined();
+    expect(aRow.userId).toBe(a);
+    expect(aRow.completed).toBe(true);
+
+    // B's scoped progress does not contain that lesson.
+    const bProgress = await db.progress.where('userId').equals(b).toArray();
+    expect(bProgress.some((p) => p.lessonId === 'math-addition-lesson-3')).toBe(false);
+  });
+
+  it('loadUser shows the picker when children exist but none active', async () => {
+    await getStore().createUser('Picky', '8-10');
+    await clearActiveUserIdViaMeta();
+    await getStore().loadUser();
+    expect(getStore().user).toBeNull();
+    expect(getStore().profiles).toHaveLength(1);
+    expect(getStore().isLoaded).toBe(true);
+  });
+
+  it('loadUser shows onboarding when no children exist', async () => {
+    await getStore().loadUser();
+    expect(getStore().user).toBeNull();
+    expect(getStore().profiles).toHaveLength(0);
+  });
+
+  it('loadUser falls back to picker on a stale active id', async () => {
+    await getStore().createUser('Stale', '8-10');
+    await setActiveUserId(99999); // points at no real child
+    await getStore().loadUser();
+    expect(getStore().user).toBeNull();
+    expect(getStore().profiles).toHaveLength(1);
+  });
+
+  it('switchProfile swaps the active user and recomputes hearts', async () => {
+    await getStore().createUser('First', '8-10');
+    const first = getStore().user.id;
+    await getStore().createUser('Second', '8-10');
+    const second = getStore().user.id;
+    expect(getStore().user.id).toBe(second);
+
+    await getStore().switchProfile(first);
+    expect(getStore().user.id).toBe(first);
+    expect(getStore().user.name).toBe('First');
+    expect(await getActiveUserId()).toBe(first);
+    expect(getStore().user.hearts).toBeGreaterThan(0);
+  });
+
+  it('deleteProfile removes a child plus all its scoped rows, leaving siblings untouched', async () => {
+    await getStore().createUser('Keeper', '8-10');
+    const keeper = getStore().user.id;
+    await getStore().completeLesson('math-addition-lesson-3', 100);
+    await getStore().updateStreak();
+
+    await getStore().createUser('Doomed', '8-10');
+    const doomed = getStore().user.id;
+    await getStore().completeLesson('math-addition-lesson-3', 100);
+    await getStore().updateStreak();
+
+    await getStore().deleteProfile(doomed);
+
+    // Doomed's rows are gone across every per-child table.
+    expect(await db.users.get(doomed)).toBeUndefined();
+    expect(await db.progress.where('userId').equals(doomed).count()).toBe(0);
+    expect(await db.streakHistory.where('userId').equals(doomed).count()).toBe(0);
+    expect(await db.dailyQuests.where('userId').equals(doomed).count()).toBe(0);
+    expect(await db.facts.where('userId').equals(doomed).count()).toBe(0);
+
+    // Keeper's data survives.
+    expect(await db.users.get(keeper)).toBeDefined();
+    expect(await db.progress.where('userId').equals(keeper).count()).toBeGreaterThan(0);
+  });
+
+  it('deleting the ACTIVE child clears the active pointer (next load → picker/onboarding)', async () => {
+    await getStore().createUser('Solo', '8-10');
+    const solo = getStore().user.id;
+    expect(await getActiveUserId()).toBe(solo);
+
+    await getStore().deleteProfile(solo);
+    expect(await getActiveUserId()).toBeNull();
+    // Was the last child → onboarding.
+    expect(getStore().user).toBeNull();
+    expect(getStore().profiles).toHaveLength(0);
+  });
+
+  it('updateSettings({ageBand}) resets only the active child progress; siblings survive', async () => {
+    await getStore().createUser('Sibling', '8-10');
+    const sibling = getStore().user.id;
+    await getStore().completeLesson('math-addition-lesson-3', 100);
+    const siblingBefore = await db.progress.where('userId').equals(sibling).count();
+    expect(siblingBefore).toBeGreaterThan(0);
+
+    await getStore().createUser('Resetter', '8-10');
+    const resetter = getStore().user.id;
+    await getStore().completeLesson('math-addition-lesson-3', 100);
+
+    // Reset only the active (Resetter) child's progress via age-band change.
+    await getStore().updateSettings({ ageBand: '11-12' });
+
+    // Resetter's old completed lesson is wiped (replaced by 11-12 skip rows).
+    const resetterRow = await db.progress.get([resetter, 'math-addition-lesson-3']);
+    // 11-12 skips addition entirely, so this lesson is auto-completed as a skip
+    // row OR absent; either way it is NOT the manually completed row we expect
+    // to persist. The key assertion: the sibling is untouched.
+    expect(resetterRow === undefined || resetterRow.attempts === 0).toBe(true);
+
+    // Sibling's progress is completely untouched.
+    const siblingRow = await db.progress.get([sibling, 'math-addition-lesson-3']);
+    expect(siblingRow).toBeDefined();
+    expect(siblingRow.completed).toBe(true);
+    expect(await db.progress.where('userId').equals(sibling).count()).toBe(siblingBefore);
+  });
+});
+
+// Helper that bypasses the public API to simulate "children exist but no active
+// profile" (e.g. after a delete that cleared meta out-of-band).
+async function clearActiveUserIdViaMeta() {
+  const { clearActiveUserId } = await import('../../db/profileMeta.js');
+  await clearActiveUserId();
+}

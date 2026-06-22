@@ -17,10 +17,17 @@ export default function GrownUpCorner() {
   const [unlocked, setUnlocked] = useState(false);
 
   const user = useGameStore((s) => s.user);
-  const progress = useLiveQuery(() => db.progress.toArray(), []);
+  const activeUserId = user?.id;
+  const progress = useLiveQuery(
+    () => (activeUserId == null ? [] : db.progress.where('userId').equals(activeUserId).toArray()),
+    [activeUserId]
+  );
   const units = useLiveQuery(() => db.units.where('moduleId').equals('math').sortBy('order'), []);
   const lessons = useLiveQuery(() => db.lessons.toArray(), []);
-  const streakHistory = useLiveQuery(() => db.streakHistory.toArray(), []);
+  const streakHistory = useLiveQuery(
+    () => (activeUserId == null ? [] : db.streakHistory.where('userId').equals(activeUserId).toArray()),
+    [activeUserId]
+  );
 
   const ready =
     progress !== undefined && units !== undefined && lessons !== undefined && streakHistory !== undefined;

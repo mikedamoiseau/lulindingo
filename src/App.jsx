@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import useGameStore from './stores/useGameStore';
 import { seedDatabase } from './db/seed';
 import Onboarding from './components/onboarding/Onboarding';
+import ProfilePicker from './components/onboarding/ProfilePicker';
 import AppLayout from './components/layout/AppLayout';
 import LearningPath from './components/home/LearningPath';
 import ProgressScreen from './components/progress/ProgressScreen';
@@ -12,7 +13,7 @@ import DenScreen from './components/den/DenScreen';
 import SettingsPanel from './components/settings/SettingsPanel';
 
 export default function App() {
-  const { user, isLoaded, loadUser } = useGameStore();
+  const { user, profiles, isLoaded, loadUser } = useGameStore();
 
   useEffect(() => {
     seedDatabase().then(() => loadUser());
@@ -27,9 +28,11 @@ export default function App() {
   }
 
   if (!user) {
+    // No children at all → straight to onboarding (keeps fresh-start flow
+    // unchanged). Children exist but none active → the launch picker.
     return (
       <div className="app-shell">
-        <Onboarding />
+        {profiles.length === 0 ? <Onboarding /> : <ProfilePicker mode="launch" />}
       </div>
     );
   }
