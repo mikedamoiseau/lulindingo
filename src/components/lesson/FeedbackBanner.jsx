@@ -12,17 +12,23 @@ const randomEncouragement = () =>
 export default function FeedbackBanner({
   isCorrect,
   correctAnswer,
+  correctBucket,
   equation,
   operation,
   ageBand,
   onContinue,
   isRetry,
+  isEstimation,
 }) {
   // Hooks must run unconditionally — declare before the isRetry early return.
   const [revealed, setRevealed] = useState(false);
   const descriptor = useMemo(
-    () => (!isCorrect && !isRetry ? buildStrategy(equation, operation, ageBand) : null),
-    [isCorrect, isRetry, equation, operation, ageBand]
+    // Estimation rewards "close", not exact arithmetic — no worked strategy.
+    () =>
+      !isCorrect && !isRetry && !isEstimation
+        ? buildStrategy(equation, operation, ageBand)
+        : null,
+    [isCorrect, isRetry, isEstimation, equation, operation, ageBand]
   );
   const canShow = descriptor && descriptor.kind !== 'none';
 
@@ -55,8 +61,21 @@ export default function FeedbackBanner({
       <div className={styles.content}>
         {isCorrect ? (
           <>
-            <span className={styles.icon}>✅</span>
-            <span className={styles.message}>{randomEncouragement()}</span>
+            <span className={styles.icon}>{isEstimation ? '🎯' : '✅'}</span>
+            <span className={styles.message}>
+              {isEstimation
+                ? `Great estimate! The exact answer was ${correctAnswer}`
+                : randomEncouragement()}
+            </span>
+          </>
+        ) : isEstimation ? (
+          <>
+            <span className={styles.icon}>👍</span>
+            <div className={styles.wrongContent}>
+              <span className={styles.message}>
+                So close! It was about {correctBucket} (exactly {correctAnswer})
+              </span>
+            </div>
           </>
         ) : (
           <>

@@ -7,6 +7,7 @@ import useGameStore from '../../stores/useGameStore';
 import { calculateXp, getLessonBonus } from '../../utils/xpCalculator';
 import { getMaxExercises } from '../../utils/progression';
 import { generateExercises } from '../../utils/exerciseGenerator';
+import { buildEstimationExercise, isWithinTolerance } from '../../utils/estimation';
 import { useSpeech } from '../../hooks/useSpeech';
 import { exerciseToSpeech } from '../../utils/speakable';
 import ProgressBar from './ProgressBar';
@@ -16,6 +17,7 @@ import XpFlyUp from '../shared/XpFlyUp';
 import TypeTheAnswer from './exercises/TypeTheAnswer';
 import SelectTheAnswer from './exercises/SelectTheAnswer';
 import FollowThePattern from './exercises/FollowThePattern';
+import EstimationChallenge from './exercises/EstimationChallenge';
 import styles from './LessonEngine.module.css';
 
 export default function LessonEngine() {
@@ -23,6 +25,7 @@ export default function LessonEngine() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const isPractice = state?.isPractice ?? false;
+  const isEstimation = state?.isEstimation ?? false;
 
   const lesson = useLiveQuery(() => db.lessons.get(id), [id]);
   const user = useGameStore((s) => s.user);
@@ -51,11 +54,17 @@ export default function LessonEngine() {
   const [showSummary, setShowSummary] = useState(false);
 
   const maxExercises = getMaxExercises(ageBand);
-  const activeExercises = useMemo(
-    () => lesson ? generateExercises(lesson.operation, ageBand, lesson.tier, maxExercises) : [],
+  const activeExercises = useMemo(() => {
+    if (!lesson) return [];
+    if (isEstimation) {
+      const tier = lesson.tier >= 4 ? lesson.tier : 5; // upper tiers only (D2)
+      const base = generateExercises(lesson.operation, ageBand, tier, maxExercises);
+      // Alternate bucket / typed variants, starting with bucket (D5).
+      return base.map((ex, i) => buildEstimationExercise(ex, i % 2 === 0 ? 'bucket' : 'type'));
+    }
+    return generateExercises(lesson.operation, ageBand, lesson.tier, maxExercises);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lesson?.id, ageBand]
-  );
+  }, [lesson?.id, ageBand, isEstimation]);
   const currentExercise = activeExercises[exerciseIndex];
 
   useEffect(() => {
@@ -68,7 +77,12 @@ export default function LessonEngine() {
   const handleAnswer = useCallback(
     (answer) => {
       if (!currentExercise) return;
-      const isCorrect = answer === currentExercise.correctAnswer;
+
+      const isCorrect = currentExercise.estimation
+        ? currentExercise.estimationMode === 'bucket'
+          ? answer.value === currentExercise.correctBucket
+          : isWithinTolerance(answer.value, currentExercise.correctAnswer)
+        : answer === currentExercise.correctAnswer;
 
       if (isCorrect) {
         if (!isPractice) {
@@ -77,28 +91,37 @@ export default function LessonEngine() {
           setXpFlyUp(Date.now());
         }
         recordAnswer(true);
-        setFeedback({ isCorrect: true });
+        setFeedback({
+          isCorrect: true,
+          isEstimation,
+          correctAnswer: currentExercise.correctAnswer,
+        });
         setRetryUsed(false);
       } else {
-        const canRetry = currentExercise.type === 'type-answer' && !retryUsed;
+        // Estimation gives no retry — "close" is already the reward (D6).
+        const canRetry =
+          !currentExercise.estimation && currentExercise.type === 'type-answer' && !retryUsed;
         if (canRetry) {
           setFeedback({ isRetry: true });
           setRetryUsed(true);
         } else {
-          if (!isPractice) {
+          // Estimation is enrichment and never costs hearts (D6).
+          if (!isPractice && !isEstimation) {
             loseHeart();
           }
           recordAnswer(false);
           setRetryUsed(false);
           setFeedback({
             isCorrect: false,
+            isEstimation,
             correctAnswer: currentExercise.correctAnswer,
+            correctBucket: currentExercise.correctBucket,
             equation: currentExercise.equation,
           });
         }
       }
     },
-    [currentExercise, retryUsed, isPractice, addLessonXp, recordAnswer, loseHeart]
+    [currentExercise, retryUsed, isPractice, isEstimation, addLessonXp, recordAnswer, loseHeart]
   );
 
   const handleContinue = useCallback(async () => {
@@ -177,6 +200,9 @@ export default function LessonEngine() {
   const exerciseComponent = (() => {
     if (!currentExercise) return null;
     const props = { exercise: currentExercise, onAnswer: handleAnswer, speechRate, readAloud };
+    if (currentExercise.estimation) {
+      return <EstimationChallenge key={exerciseIndex} {...props} />;
+    }
     switch (currentExercise.type) {
       case 'type-answer':
         return <TypeTheAnswer key={exerciseIndex} {...props} />;
@@ -197,6 +223,7 @@ export default function LessonEngine() {
         onClose={handleClose}
       />
       {isPractice && <div className={styles.practiceLabel}>Practice Mode</div>}
+      {isEstimation && <div className={styles.practiceLabel}>Estimation Challenge</div>}
       <AnimatePresence mode="wait">
         <motion.div
           key={exerciseIndex}
@@ -215,7 +242,9 @@ export default function LessonEngine() {
           <FeedbackBanner
             isCorrect={feedback.isCorrect}
             isRetry={feedback.isRetry}
+            isEstimation={feedback.isEstimation}
             correctAnswer={feedback.correctAnswer}
+            correctBucket={feedback.correctBucket}
             equation={feedback.equation}
             operation={lesson.operation}
             ageBand={ageBand}
