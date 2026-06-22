@@ -37,7 +37,12 @@ function readFacts(page) {
   );
 }
 
-/** Force a fact's dueAt to a past date so it counts as "due" on reload. */
+/**
+ * Force a fact's dueAt to a past date so it counts as "due" on reload.
+ * The facts store is keyed by the compound [userId+sig], so we can't look it up
+ * by sig alone — scan all rows, match on sig, and re-put the row (its inbound
+ * compound key is preserved).
+ */
 function forceFactDue(page, sig) {
   return page.evaluate(
     (s) =>
@@ -48,12 +53,15 @@ function forceFactDue(page, sig) {
           const db = open.result;
           const tx = db.transaction('facts', 'readwrite');
           const store = tx.objectStore('facts');
-          const get = store.get(s);
-          get.onsuccess = () => {
-            const row = get.result;
-            row.dueAt = '2000-01-01';
-            row.box = 0;
-            store.put(row);
+          const all = store.getAll();
+          all.onsuccess = () => {
+            for (const row of all.result) {
+              if (row.sig === s) {
+                row.dueAt = '2000-01-01';
+                row.box = 0;
+                store.put(row);
+              }
+            }
           };
           tx.oncomplete = () => {
             resolve(true);
