@@ -27,12 +27,14 @@ beforeEach(async () => {
   await db.streakHistory.clear();
   await db.units.clear();
   await db.lessons.clear();
+  await db.dailyQuests.clear();
   useGameStore.setState({
     user: null,
     isLoaded: false,
     lessonXp: 0,
     lessonCorrect: 0,
     lessonTotal: 0,
+    _currentRunCorrect: 0,
   });
 });
 
@@ -514,5 +516,89 @@ describe('updateSettings read-aloud', () => {
     const fresh = await db.users.get(user.id);
     expect(fresh.readAloud).toBe(true);
     expect(fresh.speechRate).toBe(0.7);
+  });
+});
+
+describe('daily quests', () => {
+  beforeEach(async () => {
+    const { seedDatabase } = await import('../../db/seed.js');
+    await seedDatabase();
+    await getStore().createUser('Quester', '8-10');
+  });
+
+  it('ensureTodayQuests creates one row keyed by today', async () => {
+    await getStore().ensureTodayQuests();
+    const today = getLocalDateString();
+    const row = await db.dailyQuests.get(today);
+    expect(row).toBeDefined();
+    expect(row.questIds).toHaveLength(3);
+    expect(row.claimed).toBe(false);
+    expect(row.answerCount).toBe(0);
+  });
+
+  it('ensureTodayQuests is idempotent (does not overwrite progress)', async () => {
+    await getStore().ensureTodayQuests();
+    await getStore().bumpQuestStats((row) => ({ answerCount: row.answerCount + 5 }));
+    await getStore().ensureTodayQuests();
+    const row = await db.dailyQuests.get(getLocalDateString());
+    expect(row.answerCount).toBe(5);
+  });
+
+  it('recordAnswer accumulates total + per-operation + run streak', async () => {
+    await getStore().ensureTodayQuests();
+    getStore().recordAnswer(true, 'multiplication');
+    getStore().recordAnswer(true, 'multiplication');
+    getStore().recordAnswer(false, 'multiplication');
+    getStore().recordAnswer(true, 'multiplication');
+    // allow async DB writes to settle
+    await new Promise((r) => setTimeout(r, 20));
+    const row = await db.dailyQuests.get(getLocalDateString());
+    expect(row.answerCount).toBe(4);
+    expect(row.answerByOperation.multiplication).toBe(4);
+    expect(row.bestStreakInSession).toBe(2); // best run was 2 before the wrong answer
+  });
+
+  it('completeLesson bumps lessonCount and bestLessonStars (non-practice)', async () => {
+    await getStore().ensureTodayQuests();
+    await getStore().completeLesson('math-addition-lesson-1', 95); // 95% → 3 stars
+    const row = await db.dailyQuests.get(getLocalDateString());
+    expect(row.lessonCount).toBe(1);
+    expect(row.bestLessonStars).toBe(3);
+  });
+
+  it('completeLesson skips quest accounting in practice mode', async () => {
+    await getStore().ensureTodayQuests();
+    await getStore().completeLesson('math-addition-lesson-1', 95, true);
+    const row = await db.dailyQuests.get(getLocalDateString());
+    expect(row.lessonCount).toBe(0);
+    expect(row.bestLessonStars).toBe(0);
+  });
+
+  it('claimQuestReward refuses until all done, then awards once', async () => {
+    await getStore().ensureTodayQuests();
+    const before = await getStore().claimQuestReward();
+    expect(before.claimed).toBe(false); // not all done
+
+    // Force all quests complete by cranking every metric.
+    await db.dailyQuests.update(getLocalDateString(), {
+      answerCount: 999,
+      answerByOperation: { addition: 999, subtraction: 999, multiplication: 999, division: 999 },
+      bestStreakInSession: 999,
+      lessonCount: 999,
+      bestLessonStars: 3,
+    });
+
+    const heartsBefore = getStore().user.hearts;
+    const first = await getStore().claimQuestReward();
+    expect(first.claimed).toBe(true);
+
+    const second = await getStore().claimQuestReward();
+    expect(second.alreadyClaimed).toBe(true); // idempotent
+
+    const row = await db.dailyQuests.get(getLocalDateString());
+    expect(row.claimed).toBe(true);
+    // reward applied at most once (heart up by 1 unless already at MAX)
+    const heartsAfter = getStore().user.hearts;
+    expect(heartsAfter).toBeLessThanOrEqual(heartsBefore + 1);
   });
 });

@@ -3,6 +3,7 @@ import { db } from '../db/database';
 import { calculateCurrentHearts, MAX_HEARTS } from '../utils/heartManager';
 import { getLocalDateString, calculateStreak } from '../utils/streakTracker';
 import { getSkippedLessonIds, getPlacementSkippedLessonIds, getFirstActiveUnitId } from '../utils/skipUnits';
+import { selectDailyQuests, allQuestsDone, QUEST_CATALOG } from '../utils/dailyQuests';
 
 const useGameStore = create((set, get) => ({
   user: null,
@@ -10,6 +11,10 @@ const useGameStore = create((set, get) => ({
   lessonXp: 0,
   lessonCorrect: 0,
   lessonTotal: 0,
+  // transient, never persisted — resets on resetLesson and on any wrong answer
+  _currentRunCorrect: 0,
+  // serializes fire-and-forget quest-stat writes to avoid lost updates
+  _questWriteQueue: Promise.resolve(),
 
   loadUser: async () => {
     const users = await db.users.toArray();
@@ -27,6 +32,7 @@ const useGameStore = create((set, get) => ({
         await db.users.update(user.id, updates);
       }
       set({ user: { ...user, ...updates }, isLoaded: true });
+      await get().ensureTodayQuests();
     } else {
       set({ isLoaded: true });
     }
@@ -79,6 +85,7 @@ const useGameStore = create((set, get) => ({
     }
 
     set({ user });
+    await get().ensureTodayQuests();
   },
 
   loseHeart: async () => {
@@ -116,15 +123,75 @@ const useGameStore = create((set, get) => ({
     set({ user: { ...user, totalXp } });
   },
 
-  recordAnswer: (correct) =>
+  ensureTodayQuests: async () => {
+    const { user } = get();
+    if (!user) return;
+    const today = getLocalDateString();
+    const existing = await db.dailyQuests.get(today);
+    if (existing) return;
+    const quests = selectDailyQuests(today, user.ageBand);
+    await db.dailyQuests.put({
+      date: today,
+      questIds: quests.map((q) => q.id),
+      claimed: false,
+      answerCount: 0,
+      answerByOperation: { addition: 0, subtraction: 0, multiplication: 0, division: 0 },
+      bestStreakInSession: 0,
+      lessonCount: 0,
+      bestLessonStars: 0,
+    });
+  },
+
+  // Merge a patch into today's row, re-reading the date each time so a
+  // midnight rollover lands writes on the new day's row (created on demand).
+  // `patch` is a function (row) => partialUpdate.
+  //
+  // recordAnswer fires these without awaiting, so several can be in flight at
+  // once. Each is a read-modify-write on the same row, so we serialize them
+  // through a promise chain (_questWriteQueue) to avoid lost updates.
+  bumpQuestStats: (patch) => {
+    const { user } = get();
+    if (!user) return Promise.resolve();
+    const run = async () => {
+      const today = getLocalDateString();
+      let row = await db.dailyQuests.get(today);
+      if (!row) {
+        await get().ensureTodayQuests();
+        row = await db.dailyQuests.get(today);
+      }
+      if (!row) return;
+      await db.dailyQuests.update(today, patch(row));
+    };
+    const next = get()._questWriteQueue.then(run, run);
+    set({ _questWriteQueue: next });
+    return next;
+  },
+
+  recordAnswer: (correct, operation) => {
     set((s) => ({
       lessonCorrect: s.lessonCorrect + (correct ? 1 : 0),
       lessonTotal: s.lessonTotal + 1,
-    })),
+      _currentRunCorrect: correct ? s._currentRunCorrect + 1 : 0,
+    }));
+    const run = get()._currentRunCorrect;
+    // fire-and-forget DB write; UI reads via useLiveQuery
+    get().bumpQuestStats((row) => {
+      const op =
+        operation && row.answerByOperation[operation] !== undefined ? operation : null;
+      return {
+        answerCount: row.answerCount + 1,
+        answerByOperation: op
+          ? { ...row.answerByOperation, [op]: row.answerByOperation[op] + 1 }
+          : row.answerByOperation,
+        bestStreakInSession: Math.max(row.bestStreakInSession, run),
+      };
+    });
+  },
 
   addLessonXp: (amount) => set((s) => ({ lessonXp: s.lessonXp + amount })),
 
-  resetLesson: () => set({ lessonXp: 0, lessonCorrect: 0, lessonTotal: 0 }),
+  resetLesson: () =>
+    set({ lessonXp: 0, lessonCorrect: 0, lessonTotal: 0, _currentRunCorrect: 0 }),
 
   updateStreak: async () => {
     const { user } = get();
@@ -159,7 +226,7 @@ const useGameStore = create((set, get) => ({
     });
   },
 
-  completeLesson: async (lessonId, accuracy) => {
+  completeLesson: async (lessonId, accuracy, isPractice = false) => {
     const stars = accuracy >= 90 ? 3 : accuracy >= 70 ? 2 : 1;
     const existing = await db.progress.get(lessonId);
     await db.progress.put({
@@ -180,6 +247,37 @@ const useGameStore = create((set, get) => ({
         xpEarned: hist.xpEarned + get().lessonXp,
       });
     }
+
+    // daily quests (skip practice — caller passes isPractice)
+    if (!isPractice) {
+      await get().bumpQuestStats((row) => ({
+        lessonCount: row.lessonCount + 1,
+        bestLessonStars: Math.max(row.bestLessonStars, stars),
+      }));
+    }
+  },
+
+  claimQuestReward: async () => {
+    const { user } = get();
+    if (!user) return { claimed: false };
+    const today = getLocalDateString();
+    const row = await db.dailyQuests.get(today);
+    if (!row) return { claimed: false };
+    if (row.claimed) return { claimed: true, alreadyClaimed: true };
+
+    const quests = row.questIds
+      .map((id) => QUEST_CATALOG.find((q) => q.id === id))
+      .filter(Boolean);
+    if (!allQuestsDone(quests, row)) return { claimed: false };
+
+    // flip the flag first (idempotency guard), then grant reward
+    await db.dailyQuests.update(today, { claimed: true });
+    if (user.hearts < MAX_HEARTS) {
+      await get().gainHeart();
+      return { claimed: true, reward: 'heart' };
+    }
+    await get().addXp(25);
+    return { claimed: true, reward: 'xp', xp: 25 };
   },
 
   updateSettings: async (settings) => {
