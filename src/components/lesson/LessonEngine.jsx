@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -7,6 +7,8 @@ import useGameStore from '../../stores/useGameStore';
 import { calculateXp, getLessonBonus } from '../../utils/xpCalculator';
 import { getMaxExercises } from '../../utils/progression';
 import { generateExercises } from '../../utils/exerciseGenerator';
+import { useSpeech } from '../../hooks/useSpeech';
+import { exerciseToSpeech } from '../../utils/speakable';
 import ProgressBar from './ProgressBar';
 import FeedbackBanner from './FeedbackBanner';
 import LessonSummary from './LessonSummary';
@@ -25,6 +27,9 @@ export default function LessonEngine() {
   const lesson = useLiveQuery(() => db.lessons.get(id), [id]);
   const user = useGameStore((s) => s.user);
   const ageBand = user?.ageBand || '8-10';
+  const readAloud = user?.readAloud ?? false;
+  const speechRate = user?.speechRate ?? 1.0;
+  const { speak } = useSpeech({ rate: speechRate });
 
   const {
     lessonXp,
@@ -52,6 +57,13 @@ export default function LessonEngine() {
     [lesson?.id, ageBand]
   );
   const currentExercise = activeExercises[exerciseIndex];
+
+  useEffect(() => {
+    if (readAloud && currentExercise && !showSummary) {
+      speak(exerciseToSpeech(currentExercise));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exerciseIndex, currentExercise?.equation, readAloud, showSummary]);
 
   const handleAnswer = useCallback(
     (answer) => {
@@ -164,7 +176,7 @@ export default function LessonEngine() {
 
   const exerciseComponent = (() => {
     if (!currentExercise) return null;
-    const props = { exercise: currentExercise, onAnswer: handleAnswer };
+    const props = { exercise: currentExercise, onAnswer: handleAnswer, speechRate };
     switch (currentExercise.type) {
       case 'type-answer':
         return <TypeTheAnswer key={exerciseIndex} {...props} />;
