@@ -96,7 +96,7 @@ export default function LessonEngine() {
           addLessonXp(xp);
           setXpFlyUp(Date.now());
         }
-        recordAnswer(true);
+        recordAnswer(true, lesson?.operation);
         setFeedback({
           isCorrect: true,
           isEstimation,
@@ -118,7 +118,7 @@ export default function LessonEngine() {
           if (!isPractice && !isEstimation) {
             loseHeart();
           }
-          recordAnswer(false);
+          recordAnswer(false, lesson?.operation);
           setRetryUsed(false);
           // build-equation has no "a op b = []" string; reconstruct a friendly
           // worked equation for the banner from its canonical solution.
@@ -136,7 +136,7 @@ export default function LessonEngine() {
         }
       }
     },
-    [currentExercise, retryUsed, isPractice, isEstimation, addLessonXp, recordAnswer, loseHeart]
+    [currentExercise, retryUsed, isPractice, isEstimation, addLessonXp, recordAnswer, loseHeart, lesson?.operation]
   );
 
   const handleContinue = useCallback(async () => {
@@ -156,7 +156,7 @@ export default function LessonEngine() {
           activeExercises.length > 0
             ? Math.round((lessonCorrect / activeExercises.length) * 100)
             : 0;
-        await completeLesson(id, accuracy);
+        await completeLesson(id, accuracy, isPractice);
       } else {
         await gainHeart();
       }
