@@ -165,11 +165,15 @@ const useGameStore = create((set, get) => ({
     const layout = user.denLayout || createDefaultLayout();
     const res = purchaseItem(itemId, user.totalXp, user.spentAcorns ?? 0, layout);
     if (!res.ok) return res;
+    // Commit to store state SYNCHRONOUSLY before the async DB write. The read
+    // (get().user) and this set() have no await between them, so a rapid second
+    // tap on a different item reads the updated balance/layout and stacks its
+    // purchase instead of overwriting the first (no lost purchase / undercount).
+    set({ user: { ...user, spentAcorns: res.spentAcorns, denLayout: res.layout } });
     await db.users.update(user.id, {
       spentAcorns: res.spentAcorns,
       denLayout: res.layout,
     });
-    set({ user: { ...user, spentAcorns: res.spentAcorns, denLayout: res.layout } });
     return res;
   },
 
@@ -180,8 +184,9 @@ const useGameStore = create((set, get) => ({
     const layout = user.denLayout || createDefaultLayout();
     const res = equipItem(itemId, layout);
     if (!res.ok) return res;
-    await db.users.update(user.id, { denLayout: res.layout });
+    // Sync set before async write (see buyAndEquip) so rapid equips don't race.
     set({ user: { ...user, denLayout: res.layout } });
+    await db.users.update(user.id, { denLayout: res.layout });
     return res;
   },
 
@@ -191,8 +196,9 @@ const useGameStore = create((set, get) => ({
     if (!user) return;
     const layout = user.denLayout || createDefaultLayout();
     const nextLayout = clearSlotLayout(slot, layout);
-    await db.users.update(user.id, { denLayout: nextLayout });
+    // Sync set before async write (see buyAndEquip) so rapid actions don't race.
     set({ user: { ...user, denLayout: nextLayout } });
+    await db.users.update(user.id, { denLayout: nextLayout });
   },
 
   ensureTodayQuests: async () => {

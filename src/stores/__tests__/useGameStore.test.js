@@ -787,6 +787,26 @@ describe("Dingo's Den economy", () => {
     expect(persisted.denLayout.cosmetics.hat).toBe('hat-party');
   });
 
+  it('two rapid buys of different items both land (no lost purchase / undercount)', async () => {
+    await getStore().createUser('FastTapper', '8-10');
+    await getStore().addXp(300);
+    // Fire two purchases for different slots near-simultaneously.
+    const [a, b] = await Promise.all([
+      getStore().buyAndEquip('plants-grass'), // cost 30, plants slot
+      getStore().buyAndEquip('weather-cloud'), // cost 40, weather slot
+    ]);
+    expect(a.ok).toBe(true);
+    expect(b.ok).toBe(true);
+    const { user } = getStore();
+    // Both charged: 30 + 40 = 70, not just one.
+    expect(user.spentAcorns).toBe(70);
+    expect(user.denLayout.owned).toEqual(expect.arrayContaining(['plants-grass', 'weather-cloud']));
+    expect(user.denLayout.slots.plants).toBe('plants-grass');
+    expect(user.denLayout.slots.weather).toBe('weather-cloud');
+    const persisted = (await db.users.toArray())[0];
+    expect(persisted.spentAcorns).toBe(70);
+  });
+
   it('buyAndEquip on an unaffordable item is a no-op (no negative balance)', async () => {
     await getStore().createUser('Broke', '8-10');
     await getStore().addXp(50);
