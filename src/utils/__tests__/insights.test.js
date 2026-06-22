@@ -82,6 +82,24 @@ describe('computeInsights', () => {
     expect(m.lessonsCompletedTotal).toBe(4);
   });
 
+  it('excludes auto-skipped placement rows (attempts: 0) from mastery', () => {
+    const progress = [
+      // placement/age-skip auto-completions: completed, 3 stars, but never attempted
+      { lessonId: 'math-addition-lesson-1', completed: true, stars: 3, bestAccuracy: 100, attempts: 0 },
+      { lessonId: 'math-addition-lesson-2', completed: true, stars: 3, bestAccuracy: 100, attempts: 0 },
+      // one genuinely played lesson
+      prog('math-addition-lesson-3', 2, 80, 1),
+    ];
+    const m = computeInsights({
+      user: { totalXp: 100, currentStreak: 1, ageBand: '8-10', startingTier: 3 },
+      progress, units, lessons, streakHistory: [],
+    });
+    const add = m.operations.find((o) => o.operation === 'addition');
+    expect(add.tiersCompleted).toBe(1); // only the attempted lesson counts
+    expect(add.avgStars).toBe(2); // not inflated to 3 by the skipped rows
+    expect(m.lessonsCompletedTotal).toBe(1);
+  });
+
   it('aggregates xp trend and time-of-day from streakHistory', () => {
     const streakHistory = [
       { date: '2026-06-20', lessonsCompleted: 2, xpEarned: 120, timeOfDay: { morning: 2, afternoon: 0, evening: 0 } },

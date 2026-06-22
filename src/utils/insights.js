@@ -40,9 +40,15 @@ export function computeInsights({ user, progress = [], units = [], lessons = [],
     .filter((u) => u.moduleId === 'math')
     .sort((a, b) => a.order - b.order);
 
+  // A lesson counts as real progress only if the child actually attempted it.
+  // Placement/age-skip auto-completions are written with attempts: 0 — counting
+  // those would inflate mastery and fire a bogus "breezing, bump the tier" nudge
+  // before any real play. Genuine completion always bumps attempts to >= 1.
+  const isReallyDone = (p) => p && p.completed && (p.attempts || 0) > 0;
+
   const operations = sortedUnits.map((unit) => {
     const unitLessons = lessons.filter((l) => l.unitId === unit.id);
-    const done = unitLessons.map((l) => progressMap.get(l.id)).filter((p) => p && p.completed);
+    const done = unitLessons.map((l) => progressMap.get(l.id)).filter(isReallyDone);
     const tiersCompleted = done.length;
     const avgStars = done.length ? round1(avg(done.map((p) => p.stars))) : 0;
     const avgAttempts = done.length ? round1(avg(done.map((p) => p.attempts || 0))) : 0;
@@ -59,7 +65,7 @@ export function computeInsights({ user, progress = [], units = [], lessons = [],
     };
   });
 
-  const allDone = progress.filter((p) => p.completed);
+  const allDone = progress.filter(isReallyDone);
   const lessonsCompletedTotal = allDone.length;
   const averageStars = allDone.length ? round1(avg(allDone.map((p) => p.stars))) : 0;
 
