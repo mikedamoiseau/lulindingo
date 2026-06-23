@@ -1,0 +1,107 @@
+.board {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.boardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+}
+
+.title {
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.claimBtn {
+  background: var(--green);
+  color: #fff;
+  font-weight: 800;
+  font-size: var(--text-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-full);
+  box-shadow: 0 3px 0 var(--green-hover);
+  transition: transform 0.1s ease;
+}
+
+.claimBtn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--green-hover);
+}
+
+.claimed {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--green);
+}
+
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.quest {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.icon {
+  font-size: var(--text-xl);
+  width: 32px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.questBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.bar {
+  height: 10px;
+  background: var(--border);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  background: var(--blue);
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+
+.count {
+  font-size: var(--text-sm);
+  font-weight: 800;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  min-width: 40px;
+  text-align: right;
+}
+
+.questDone .label {
+  color: var(--green);
+}
+
+.questDone .fill {
+  background: var(--green);
+}

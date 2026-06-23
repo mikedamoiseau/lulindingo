@@ -10,7 +10,11 @@ const AGE_BANDS = [
   { value: '11-12', label: 'Challenger', hint: 'Ages 11-12', emoji: '⚡', startingTier: 3 },
 ];
 
-export default function Onboarding() {
+// `mode` defaults to 'first' (the App-level fresh-run gate swaps to the app once
+// `user` is set). In 'add' mode (adding the Nth child from the picker) we call
+// `onComplete` after createUser so the picker overlay can close — createUser
+// already sets the new child active, so the app swaps regardless.
+export default function Onboarding({ mode = 'first', onComplete }) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
   const createUser = useGameStore((s) => s.createUser);
@@ -28,6 +32,7 @@ export default function Onboarding() {
       startingTier: band.startingTier,
       placementMethod: 'manual',
     });
+    if (mode === 'add') onComplete?.();
   };
 
   const handlePlacementComplete = async (result) => {
@@ -35,6 +40,7 @@ export default function Onboarding() {
       startingTier: result.startingTier,
       placementMethod: 'test',
     });
+    if (mode === 'add') onComplete?.();
   };
 
   if (step === 3) {

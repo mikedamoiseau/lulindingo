@@ -92,3 +92,10 @@
   background: var(--green);
   color: var(--text-primary);
 }
+
+.instructionRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+}

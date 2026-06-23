@@ -6,26 +6,40 @@ const EXPRESSIONS = {
   celebrating: { mouth: 'M 20 60 Q 40 85 60 60', eyes: 'closed' },
 };
 
-export default function Mascot({ expression = 'happy', size = 120 }) {
+// Classic palette — the byte-for-byte default so the ~existing Mascot usages
+// (Learning Path, Lesson Summary, etc.) render exactly as before.
+const DEFAULT_COLORS = { body: '#E8943A', belly: '#F5C882', dark: '#D4762A' };
+
+/**
+ * Shared Dingo mascot.
+ *
+ * Optional props (both default to today's render, so existing usages are
+ * unchanged):
+ *  - bodyColor: { body, belly, dark } overrides the orange palette (Den cosmetic).
+ *    A partial object falls back to the classic value per missing key.
+ *  - hat: a ReactNode (SVG group) rendered on top of the head (Den cosmetic).
+ */
+export default function Mascot({ expression = 'happy', size = 120, bodyColor, hat = null }) {
   const expr = EXPRESSIONS[expression] || EXPRESSIONS.happy;
+  const colors = { ...DEFAULT_COLORS, ...(bodyColor || {}) };
 
   return (
     <svg className={styles.mascot} width={size} height={size} viewBox="0 0 80 90" fill="none">
       {/* Body */}
-      <ellipse cx="40" cy="55" rx="28" ry="30" fill="#E8943A" />
+      <ellipse cx="40" cy="55" rx="28" ry="30" fill={colors.body} />
       {/* Belly */}
-      <ellipse cx="40" cy="60" rx="18" ry="20" fill="#F5C882" />
+      <ellipse cx="40" cy="60" rx="18" ry="20" fill={colors.belly} />
       {/* Head */}
-      <circle cx="40" cy="35" r="22" fill="#E8943A" />
+      <circle cx="40" cy="35" r="22" fill={colors.body} />
       {/* Ears */}
-      <ellipse cx="22" cy="15" rx="8" ry="14" fill="#E8943A" transform="rotate(-15 22 15)" />
-      <ellipse cx="22" cy="15" rx="5" ry="10" fill="#D4762A" transform="rotate(-15 22 15)" />
-      <ellipse cx="58" cy="15" rx="8" ry="14" fill="#E8943A" transform="rotate(15 58 15)" />
-      <ellipse cx="58" cy="15" rx="5" ry="10" fill="#D4762A" transform="rotate(15 58 15)" />
+      <ellipse cx="22" cy="15" rx="8" ry="14" fill={colors.body} transform="rotate(-15 22 15)" />
+      <ellipse cx="22" cy="15" rx="5" ry="10" fill={colors.dark} transform="rotate(-15 22 15)" />
+      <ellipse cx="58" cy="15" rx="8" ry="14" fill={colors.body} transform="rotate(15 58 15)" />
+      <ellipse cx="58" cy="15" rx="5" ry="10" fill={colors.dark} transform="rotate(15 58 15)" />
       {/* Nose */}
       <ellipse cx="40" cy="42" rx="6" ry="4" fill="#2a1a0a" />
       {/* Snout */}
-      <ellipse cx="40" cy="46" rx="12" ry="8" fill="#F5C882" />
+      <ellipse cx="40" cy="46" rx="12" ry="8" fill={colors.belly} />
       {/* Eyes */}
       {expr.eyes === 'open' && (
         <>
@@ -51,6 +65,8 @@ export default function Mascot({ expression = 'happy', size = 120 }) {
       )}
       {/* Mouth */}
       <path d={expr.mouth} stroke="#2a1a0a" strokeWidth="2" strokeLinecap="round" fill="none" />
+      {/* Optional hat (Den cosmetic) on top of the head */}
+      {hat}
     </svg>
   );
 }

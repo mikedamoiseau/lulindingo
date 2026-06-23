@@ -7,5 +7,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: './src/test-setup.js',
+    // e2e/ holds Playwright specs (browser runner), not vitest specs.
+    exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
   },
 })

@@ -2,13 +2,22 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import useGameStore from '../../stores/useGameStore';
+import { isEstimationEligible } from '../../utils/estimationMode';
 import styles from './LessonNode.module.css';
 
 export default function LessonNode({ lesson, status, stars }) {
   const navigate = useNavigate();
   const hearts = useGameStore((s) => s.user?.hearts ?? 0);
+  const ageBand = useGameStore((s) => s.user?.ageBand);
   const [showNoHearts, setShowNoHearts] = useState(false);
   const [showLocked, setShowLocked] = useState(false);
+
+  // Estimation is an enrichment activity on completed, eligible upper-tier
+  // lessons (tiers 4–5) for the 8-10 / 11-12 bands — see D2/D8.
+  const canEstimate =
+    status === 'completed' &&
+    lesson.tier >= 4 &&
+    isEstimationEligible(lesson.operation, ageBand);
 
   const handleClick = () => {
     if (status === 'locked') {
@@ -49,6 +58,16 @@ export default function LessonNode({ lesson, status, stars }) {
           />
         )}
       </motion.button>
+      {canEstimate && (
+        <button
+          className={styles.estimateBtn}
+          onClick={() =>
+            navigate(`/lesson/${lesson.id}`, { state: { isEstimation: true } })
+          }
+        >
+          Estimation Challenge ⚡
+        </button>
+      )}
       <AnimatePresence>
         {showLocked && (
           <motion.div

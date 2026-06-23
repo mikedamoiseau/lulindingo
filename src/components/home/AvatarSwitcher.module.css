@@ -1,0 +1,27 @@
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.avatar:active {
+  transform: scale(0.95);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: var(--bg);
+  overflow-y: auto;
+}

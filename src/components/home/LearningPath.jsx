@@ -1,21 +1,34 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db/database';
-import useGameStore from '../../stores/useGameStore';
+import useGameStore, { getDueFactCount } from '../../stores/useGameStore';
 import { getUnitStates, getLessonStatus } from '../../utils/progression';
 import UnitHeader from './UnitHeader';
 import LessonNode from './LessonNode';
+import QuestBoard from './QuestBoard';
+import ReviewCallout from './ReviewCallout';
 import HeartDisplay from '../shared/HeartDisplay';
 import Mascot from '../shared/Mascot';
+import AvatarSwitcher from './AvatarSwitcher';
 import styles from './LearningPath.module.css';
 
 export default function LearningPath() {
   const user = useGameStore((s) => s.user);
+  const activeUserId = user?.id;
   const units = useLiveQuery(
     () => db.units.where('moduleId').equals('math').sortBy('order'),
     []
   );
   const lessons = useLiveQuery(() => db.lessons.orderBy('order').toArray(), []);
-  const progress = useLiveQuery(() => db.progress.toArray(), []);
+  // Scope per-child tables by the active profile so switching children refreshes
+  // the path live (the dep array re-runs the query on switch).
+  const progress = useLiveQuery(
+    () => (activeUserId == null ? [] : db.progress.where('userId').equals(activeUserId).toArray()),
+    [activeUserId]
+  );
+  const facts = useLiveQuery(
+    () => (activeUserId == null ? [] : db.facts.where('userId').equals(activeUserId).toArray()),
+    [activeUserId]
+  );
 
   if (!units || !lessons || !progress) {
     return (
@@ -47,6 +60,7 @@ export default function LearningPath() {
         </div>
         <div className={styles.headerRight}>
           <HeartDisplay />
+          <AvatarSwitcher />
           <button
             className={styles.gearBtn}
             onClick={() => window.dispatchEvent(new Event('open-settings'))}
@@ -55,6 +69,10 @@ export default function LearningPath() {
           </button>
         </div>
       </header>
+
+      <QuestBoard />
+
+      <ReviewCallout dueCount={getDueFactCount(facts ?? [])} />
 
       {/* Completed units — collapsed badges */}
       {unitData.slice(0, Math.max(0, currentIndex)).map(({ unit }) => (

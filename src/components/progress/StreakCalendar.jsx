@@ -1,9 +1,14 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db/database';
+import useGameStore from '../../stores/useGameStore';
 import { getLocalDateString } from '../../utils/streakTracker';
 
 export default function StreakCalendar({ styles }) {
-  const history = useLiveQuery(() => db.streakHistory.toArray(), []);
+  const activeUserId = useGameStore((s) => s.user?.id);
+  const history = useLiveQuery(
+    () => (activeUserId == null ? [] : db.streakHistory.where('userId').equals(activeUserId).toArray()),
+    [activeUserId]
+  );
   const dates = new Set((history || []).map((h) => h.date));
 
   const days = [];

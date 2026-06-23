@@ -32,4 +32,12 @@ export default defineConfig([
       globals: globals.node,
     },
   },
+  {
+    // Playwright specs run in Node but their page.evaluate callbacks reference
+    // browser globals (indexedDB, window), so allow both.
+    files: ['e2e/**/*.js', 'playwright.config.js'],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.browser },
+    },
+  },
 ])
