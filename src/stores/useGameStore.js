@@ -178,9 +178,14 @@ const useGameStore = create((set, get) => ({
 
   loseHeart: async () => {
     const { user } = get();
-    if (!user || user.hearts <= 0) return;
-    const hearts = user.hearts - 1;
-    const heartsLastRefill = new Date();
+    if (!user) return;
+    // Apply refills already earned first, and keep the running refill clock:
+    // the 20-minute timer only (re)starts when hearts drop from full.
+    // Restarting it on every loss threw away the minutes already earned.
+    const current = calculateCurrentHearts(user.hearts, user.heartsLastRefill);
+    if (current.hearts <= 0) return;
+    const hearts = current.hearts - 1;
+    const heartsLastRefill = current.hearts >= MAX_HEARTS ? new Date() : current.heartsLastRefill;
     await db.users.update(user.id, { hearts, heartsLastRefill });
     set({ user: { ...user, hearts, heartsLastRefill } });
   },
@@ -497,7 +502,9 @@ const useGameStore = create((set, get) => ({
     if (!user) return;
     await db.users.update(user.id, settings);
 
-    if (settings.ageBand) {
+    // Only a real band change resets progress — tapping the band the child is
+    // already on used to wipe everything.
+    if (settings.ageBand && settings.ageBand !== user.ageBand) {
       // Reset ONLY the active child's progress — siblings must be untouched.
       await db.progress.where('userId').equals(user.id).delete();
       const allLessons = await db.lessons.toArray();
