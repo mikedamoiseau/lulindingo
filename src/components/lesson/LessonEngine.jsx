@@ -80,15 +80,15 @@ export default function LessonEngine() {
       if (facts === undefined || progress === undefined) return [];
       const factList = facts;
       const progressList = progress;
-      const startingTier = user?.startingTier ?? 1;
-
-      // Current tier in an operation = how many of its 5 lessons are completed,
-      // clamped to 1–5 (fallback to startingTier, then 1).
+      // Current tier in an operation = how many of its 5 lessons are completed
+      // (placement/band skips included), clamped to 1–5. No startingTier
+      // fallback: that is the placement tier of the FIRST unit only, so it
+      // served e.g. tier-4 subtraction to a child still on subtraction lesson 1.
       const tierFor = (operation) => {
         const completed = progressList.filter(
           (p) => p.completed && p.lessonId.startsWith(`math-${operation}-`)
         ).length;
-        return Math.min(5, Math.max(1, completed || startingTier || 1));
+        return Math.min(5, Math.max(1, completed));
       };
 
       // Operations the child has actually played (a lesson they completed

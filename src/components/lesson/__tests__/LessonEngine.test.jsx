@@ -38,7 +38,7 @@ const freshSet = (op, _band, _tier, count) =>
     return { type: 'type-answer', equation: `${counter} + 1 = []`, correctAnswer: counter + 1, operation: op };
   });
 
-async function setup(ageBand = '6-7') {
+async function setup(ageBand = '6-7', startingTier = 1) {
   for (const t of ['users', 'progress', 'streakHistory', 'units', 'lessons', 'dailyQuests', 'facts', 'meta']) {
     await db[t].clear();
   }
@@ -52,7 +52,7 @@ async function setup(ageBand = '6-7') {
     longestStreak: 0,
     lastActiveDate: null,
     ageBand,
-    startingTier: 1,
+    startingTier,
   });
   await setActiveUserId(id);
   useGameStore.setState({
@@ -157,5 +157,21 @@ describe('LessonEngine — review', () => {
     await screen.findByText('CHECK');
     const ops = new Set(generateExercises.mock.calls.map((c) => c[0]));
     expect([...ops]).toEqual(['multiplication']);
+  });
+
+  it("reviews an operation at the child's level in that operation, not their placement tier", async () => {
+    generateExercises.mockImplementation(fixedSet('subtraction'));
+    // Placed at tier 4 in addition, finished addition, just started subtraction
+    // (lesson 1 not finished) and missed a subtraction fact.
+    const id = await setup('8-10', 4);
+    for (let t = 1; t <= 5; t++) {
+      await db.progress.put({ userId: id, lessonId: `math-addition-lesson-${t}`, completed: true, stars: 3, bestAccuracy: 100, attempts: t < 4 ? 0 : 1 });
+    }
+    await db.facts.put({ userId: id, ...dueFact('subtraction', 52, 17, '-') });
+    renderAt('/lesson/review', { isPractice: true });
+    await screen.findByText('CHECK');
+    const subtractionCalls = generateExercises.mock.calls.filter((c) => c[0] === 'subtraction');
+    expect(subtractionCalls.length).toBeGreaterThan(0);
+    for (const call of subtractionCalls) expect(call[2]).toBe(1); // tier 1, like the lesson they're on
   });
 });
