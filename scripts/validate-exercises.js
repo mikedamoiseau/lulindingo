@@ -42,40 +42,31 @@ function parseRemainderStr(s) {
   return m ? { q: +m[1], r: +m[2] } : null;
 }
 
-// Max reachable correct answer, mirroring the constants in exerciseGenerator.
-// The cap is operation-specific: add/sub follow AGE_BAND_MAX, while mul/div use
-// their own factor ranges (factorMax = 50 for explorers, 1000 for challengers).
-const AGE_BAND_MAX = { '6-7': 20, '8-10': 1_000, '11-12': 1_000_000 };
+// Calculator-free ceilings per operation × age band. These are deliberately
+// written out by hand (not imported from the generator's CURRICULUM) so this
+// sweep is an independent check: if a curriculum row is ever widened past what
+// a child can work out on paper, validation fails.
+//   add/sub:  6-7 within 20 · 8-10 within 1,000 · 11-12 at most 5 digits
+//   mul:      6-7 ≤ 10 × 10 · 8-10 ≤ 49 × 9 · 11-12 ≤ 999 × 9 (3-digit × 1-digit)
+//   div:      quotient caps; the dividend is capped separately (maxOperand)
+const MAX_ANSWER = {
+  addition:       { '6-7': 20, '8-10': 1_000, '11-12': 100_000 },
+  subtraction:    { '6-7': 20, '8-10': 1_000, '11-12': 100_000 },
+  multiplication: { '6-7': 100, '8-10': 500, '11-12': 10_000 },
+  division:       { '6-7': 10, '8-10': 49, '11-12': 250 },
+};
+const MAX_DIVIDEND = { '6-7': 100, '8-10': 500, '11-12': 1_000 };
 
 function maxAnswer(operation, ageBand) {
-  const challenger = ageBand === '11-12';
-  switch (operation) {
-    case 'addition':
-    case 'subtraction':
-      return AGE_BAND_MAX[ageBand];
-    case 'multiplication': {
-      const factorMax = challenger ? 1_000 : 50;
-      return factorMax * factorMax;
-    }
-    case 'division':
-      // challenger: dividend ≤ 1000, divisor ≥ 1 → answer ≤ 1000.
-      // explorer: answer is the constructed quotient ≤ factorMax (50).
-      return challenger ? 1_000 : 50;
-    default:
-      return Infinity;
-  }
+  return MAX_ANSWER[operation]?.[ageBand] ?? Infinity;
 }
 
 // Max reachable OPERAND value (not result). For the equation-puzzle types the
-// blank / tray tiles can hold an operand, which for division is the DIVIDEND
-// (= divisor × quotient), bounded by factorMax² — much larger than the quotient
-// cap returned by maxAnswer. Add/sub/mul operands never exceed maxAnswer, so
-// only division differs.
+// blank / tray tiles can hold an operand, which for division is the DIVIDEND —
+// larger than the quotient cap returned by maxAnswer. Add/sub/mul operands
+// never exceed maxAnswer, so only division differs.
 function maxOperand(operation, ageBand) {
-  if (operation === 'division') {
-    const factorMax = ageBand === '11-12' ? 1_000 : 50;
-    return factorMax * factorMax;
-  }
+  if (operation === 'division') return MAX_DIVIDEND[ageBand];
   return maxAnswer(operation, ageBand);
 }
 
@@ -246,7 +237,7 @@ function validateExercise(ctx, operation, ageBand, ex) {
       err(ctx, `build-equation result ${ex.result} exceeds max ${capB}`);
     }
     // Tray tiles hold operands; for division the dividend tile is bounded by
-    // factorMax² (maxOperand), not the quotient cap.
+    // MAX_DIVIDEND (maxOperand), not the quotient cap.
     const capTile = maxOperand(operation, ageBand);
     for (const tile of ex.tray) {
       if (tile > capTile) {
@@ -321,6 +312,14 @@ function validateExercise(ctx, operation, ageBand, ex) {
     const decimals = ex.correctAnswer.toString().split('.')[1] || '';
     if (decimals.length > 2) {
       err(ctx, `division result ${ex.correctAnswer} has >2 decimal places`);
+    }
+    // Exact, never rounded: answer × divisor must give back the dividend
+    // (44 ÷ 78 "= 0.56" is not something a child can work out).
+    if (Math.abs(ex.correctAnswer * parsed.b - parsed.a) > 1e-9) {
+      err(ctx, `division result ${ex.correctAnswer} is rounded, not exact ("${ex.equation}")`);
+    }
+    if (parsed.a > maxOperand(operation, ageBand)) {
+      err(ctx, `dividend ${parsed.a} exceeds max ${maxOperand(operation, ageBand)} ("${ex.equation}")`);
     }
   }
 

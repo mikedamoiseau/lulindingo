@@ -128,7 +128,10 @@ export default function LessonEngine() {
     }
     if (!lesson) return [];
     if (isEstimation) {
-      const tier = lesson.tier >= 4 ? lesson.tier : 5; // upper tiers only (D2)
+      // Always the top tier (D2: estimation needs genuinely large numbers).
+      // Tier 4 is no longer big enough everywhere — Explorer × tier 4 is the
+      // 12 × 12 tables, which a child would just work out exactly.
+      const tier = 5;
       // forwardOnly: estimation needs "a op b = result" exercises; the puzzle
       // types (missing-number/build-equation) have no result to estimate.
       const base = generateExercises(lesson.operation, ageBand, tier, maxExercises, { forwardOnly: true });

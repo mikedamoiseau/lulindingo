@@ -406,6 +406,203 @@ describe('generateExercises — division', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Difficulty curve — each tier is one small step harder than the last, and
+// every problem stays solvable without a calculator.
+// ---------------------------------------------------------------------------
+
+/**
+ * Operands + result of every exercise type, so the curve is checked on ALL
+ * interaction types (forward, follow-pattern, missing-number, build-equation)
+ * — not just the forward ones.
+ */
+function operandsOf(ex) {
+  if (ex.type === 'missing-number') return { a: ex.a, b: ex.b, result: ex.result };
+  if (ex.type === 'build-equation') return { a: ex.solution[0], b: ex.solution[1], result: ex.result };
+  const { a, b } = parseEquation(ex.equation);
+  return { a, b, result: ex.correctAnswer };
+}
+
+function sample(operation, ageBand, tier, n = 240) {
+  return generateExercises(operation, ageBand, tier, n).map(operandsOf);
+}
+
+const inRange = (n, lo, hi) => Number.isInteger(n) && n >= lo && n <= hi;
+
+/** One factor from `table`, the other in [lo, hi] — in either order. */
+function isTableFact({ a, b }, table, lo, hi) {
+  return (table.includes(a) && inRange(b, lo, hi)) || (table.includes(b) && inRange(a, lo, hi));
+}
+
+describe('difficulty curve — Explorer (8-10) multiplication', () => {
+  it('tier 1 practises the 2, 5 and 10 times tables', () => {
+    for (const p of sample('multiplication', '8-10', 1)) {
+      expect(isTableFact(p, [2, 5, 10], 2, 10)).toBe(true);
+    }
+  });
+
+  it('tier 2 practises the 3, 4 and 8 times tables', () => {
+    for (const p of sample('multiplication', '8-10', 2)) {
+      expect(isTableFact(p, [3, 4, 8], 2, 10)).toBe(true);
+    }
+  });
+
+  it('tier 3 practises the 6, 7 and 9 times tables', () => {
+    for (const p of sample('multiplication', '8-10', 3)) {
+      expect(isTableFact(p, [6, 7, 9], 2, 10)).toBe(true);
+    }
+  });
+
+  it('tier 4 mixes all times tables up to 12 × 12', () => {
+    for (const { a, b } of sample('multiplication', '8-10', 4)) {
+      expect(inRange(a, 2, 12) && inRange(b, 2, 12)).toBe(true);
+    }
+  });
+
+  it('tier 5 is a 2-digit number times a 1-digit number', () => {
+    for (const { a, b } of sample('multiplication', '8-10', 5)) {
+      const twoByOne = (x, y) => inRange(x, 12, 49) && inRange(y, 3, 9);
+      expect(twoByOne(a, b) || twoByOne(b, a)).toBe(true);
+    }
+  });
+});
+
+describe('difficulty curve — Explorer (8-10) division', () => {
+  const exact = ({ a, b, result }) => a === b * result;
+
+  it('tiers 1-3 are the inverse of the 2/5/10, 3/4/8 and 6/7/9 tables', () => {
+    const tables = { 1: [2, 5, 10], 2: [3, 4, 8], 3: [6, 7, 9] };
+    for (const tier of [1, 2, 3]) {
+      for (const p of sample('division', '8-10', tier)) {
+        expect(exact(p)).toBe(true);
+        expect(tables[tier]).toContain(p.b);
+        expect(inRange(p.result, 2, 10)).toBe(true);
+      }
+    }
+  });
+
+  it('tier 4 divides within the 12 × 12 tables', () => {
+    for (const p of sample('division', '8-10', 4)) {
+      expect(exact(p)).toBe(true);
+      expect(inRange(p.b, 2, 12) && inRange(p.result, 2, 12)).toBe(true);
+    }
+  });
+
+  it('tier 5 divides by a 1-digit number with a 2-digit answer', () => {
+    for (const p of sample('division', '8-10', 5)) {
+      expect(exact(p)).toBe(true);
+      expect(inRange(p.b, 3, 9) && inRange(p.result, 12, 49)).toBe(true);
+    }
+  });
+});
+
+describe('difficulty curve — Explorer (8-10) addition & subtraction', () => {
+  it('addition grows one step per tier (no jump from 2-digit straight to 3-digit + 3-digit)', () => {
+    // Largest possible sum per tier: 2-digit, 2-digit crossing 100,
+    // 3-digit + 2-digit, 3-digit + 3-digit, 3-digit + 3-digit up to 999.
+    const maxSum = { 1: 99, 2: 198, 3: 598, 4: 700, 5: 999 };
+    for (const tier of [1, 2, 3, 4, 5]) {
+      for (const { result } of sample('addition', '8-10', tier)) {
+        expect(result).toBeLessThanOrEqual(maxSum[tier]);
+      }
+    }
+  });
+
+  it('tier 1 addition is 2-digit + 2-digit', () => {
+    for (const { a, b } of sample('addition', '8-10', 1)) {
+      expect(inRange(a, 10, 99) && inRange(b, 10, 99)).toBe(true);
+    }
+  });
+
+  it('tier 1 subtraction stays below 100', () => {
+    for (const { a, b, result } of sample('subtraction', '8-10', 1)) {
+      expect(a).toBeLessThan(100);
+      expect(a - b).toBe(result);
+      expect(result).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
+
+describe('difficulty curve — Starter (6-7)', () => {
+  it('addition and subtraction stay within 20 on every tier', () => {
+    for (const op of ['addition', 'subtraction']) {
+      for (const tier of [1, 2, 3, 4, 5]) {
+        for (const { a, b, result } of sample(op, '6-7', tier)) {
+          expect(Math.max(a, b, result)).toBeLessThanOrEqual(20);
+        }
+      }
+    }
+  });
+
+  it('never asks 0 + 0 / 0 - 0 style throwaway questions', () => {
+    for (const op of ['addition', 'subtraction']) {
+      for (const { a, b } of sample(op, '6-7', 1)) {
+        expect(a).toBeGreaterThan(0);
+        expect(b).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('multiplication only uses the 1, 2, 5 and 10 times tables (product ≤ 100)', () => {
+    for (const tier of [1, 2, 3, 4, 5]) {
+      for (const p of sample('multiplication', '6-7', tier)) {
+        expect(isTableFact(p, [1, 2, 5, 10], 1, 10)).toBe(true);
+        expect(p.result).toBeLessThanOrEqual(100);
+      }
+    }
+  });
+
+  it('division only divides by 2, 5 or 10 with an answer up to 10', () => {
+    for (const tier of [1, 2, 3, 4, 5]) {
+      for (const p of sample('division', '6-7', tier)) {
+        expect([2, 5, 10]).toContain(p.b);
+        expect(inRange(p.result, 1, 10)).toBe(true);
+        expect(p.a).toBe(p.b * p.result);
+      }
+    }
+  });
+});
+
+describe('difficulty curve — Challenger (11-12)', () => {
+  it('multiplication starts at the 12 × 12 tables and never exceeds 2-digit × 2-digit or 3-digit × 1-digit', () => {
+    for (const { a, b } of sample('multiplication', '11-12', 1)) {
+      expect(inRange(a, 2, 12) && inRange(b, 2, 12)).toBe(true);
+    }
+    for (const tier of [2, 3, 4, 5]) {
+      for (const { a, b, result } of sample('multiplication', '11-12', tier)) {
+        const big = Math.max(a, b);
+        const small = Math.min(a, b);
+        expect(big <= 99 || small <= 9).toBe(true);
+        expect(result).toBeLessThan(10_000);
+      }
+    }
+  });
+
+  it('division answers are always exact — no rounded decimals like 44 ÷ 78 = 0.56', () => {
+    for (const tier of [1, 2, 3, 4, 5]) {
+      for (const ex of generateExercises('division', '11-12', tier, 240)) {
+        const { a, b, result } = operandsOf(ex);
+        // result × divisor gives back the dividend exactly (no rounding)…
+        expect(Math.abs(result * b - a)).toBeLessThan(1e-9);
+        // …with at most 2 decimal places, and a divisor a kid can work with.
+        expect(Math.round(result * 100)).toBeCloseTo(result * 100, 9);
+        expect(b).toBeLessThanOrEqual(25);
+        expect(a).toBeLessThan(1000);
+      }
+    }
+  });
+
+  it('addition and subtraction stay under 100,000 (5 digits max)', () => {
+    for (const op of ['addition', 'subtraction']) {
+      for (const tier of [1, 2, 3, 4, 5]) {
+        for (const { a, b, result } of sample(op, '11-12', tier)) {
+          expect(Math.max(a, b, result)).toBeLessThan(100_000);
+        }
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // story-problem type + remainder division variant
 // ---------------------------------------------------------------------------
 
