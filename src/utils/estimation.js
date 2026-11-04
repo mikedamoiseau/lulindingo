@@ -57,7 +57,12 @@ export function makeBuckets(answer, rng = Math.random) {
 
   // Build the list of >= 0 distractor candidates, keeping the straddle invariant:
   // guarantee at least one below (when trueBucket > 0) and one above.
+  // A halfway answer (150 between 100 and 200) rounds up, so the bucket just
+  // below is exactly as close as the graded one — never offer it, or a child
+  // choosing it is marked wrong for a correct estimate.
+  const isHalfway = Math.abs(answer - trueBucket) * 2 === granularity;
   const belowCandidates = negativeOffsets
+    .filter((k) => !(isHalfway && k === -1))
     .map((k) => trueBucket + k * granularity)
     .filter((b) => b >= 0 && b !== trueBucket);
   const aboveCandidates = positiveOffsets
