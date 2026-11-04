@@ -109,8 +109,8 @@ export function evaluateQuest(quest, stats) {
  * Quests are picked once a day, but a child can finish a unit mid-day. An
  * unfinished operation quest for an operation they can no longer play (the
  * finished unit collapses and practice doesn't count) would then be stuck.
- * Swap each such quest, in place, for an achievable one that isn't done yet,
- * preferring a quest type not already on the board. Others are kept as-is.
+ * Swap each such quest, in place, for an achievable one — preferably one that
+ * isn't done yet and whose type isn't already on the board. Others are kept.
  *
  * @param {string[]} questIds - today's quest ids
  * @param {object} stats - today's quest row (answer counts etc.)
@@ -127,13 +127,14 @@ export function replaceStuckQuests(questIds, stats, playableOps) {
   for (let i = 0; i < result.length; i++) {
     if (!isStuck(byId(result[i]))) continue;
     const usedTypes = new Set(result.filter((_, j) => j !== i).map((id) => byId(id)?.type));
-    const candidates = QUEST_CATALOG.filter(
-      (q) =>
-        !result.includes(q.id) &&
-        (!q.operation || playableOps.includes(q.operation)) &&
-        !evaluateQuest(q, stats).done
+    const achievable = QUEST_CATALOG.filter(
+      (q) => !result.includes(q.id) && (!q.operation || playableOps.includes(q.operation))
     );
-    const pick = candidates.find((q) => !usedTypes.has(q.type)) ?? candidates[0];
+    const open = achievable.filter((q) => !evaluateQuest(q, stats).done);
+    // Prefer an open quest of a new type, then any open quest. If the child
+    // has already done everything achievable, an already-done quest is still
+    // better than a board they can never finish.
+    const pick = open.find((q) => !usedTypes.has(q.type)) ?? open[0] ?? achievable[0];
     if (pick) result[i] = pick.id;
   }
   return result;

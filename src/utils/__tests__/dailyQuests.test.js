@@ -166,6 +166,20 @@ describe('replaceStuckQuests (child moved on to another unit mid-day)', () => {
     expect(evaluateQuest(swapped, stats()).done).toBe(false); // a real quest, not a freebie
   });
 
+  it('still swaps when every achievable replacement is already done (never leaves the board unfinishable)', () => {
+    const before = ['streak-5', 'answer-10-add', 'stars-3'];
+    const everythingElseDone = stats({
+      answerCount: 15,
+      bestStreakInSession: 8,
+      bestLessonStars: 3,
+      lessonCount: 1,
+    });
+    const after = replaceStuckQuests(before, everythingElseDone, ['subtraction']);
+    expect(after).not.toContain('answer-10-add');
+    expect(after).toHaveLength(3);
+    expect(new Set(after).size).toBe(3);
+  });
+
   it('keeps an operation quest that is already done', () => {
     const before = ['streak-5', 'answer-10-add', 'stars-3'];
     const done = stats({ answerByOperation: { addition: 10, subtraction: 0, multiplication: 0, division: 0 } });
