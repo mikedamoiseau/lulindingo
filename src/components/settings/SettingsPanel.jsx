@@ -13,6 +13,9 @@ const AGE_BANDS = [
 export default function SettingsPanel() {
   const [open, setOpen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  // Age group the child tapped but hasn't confirmed yet. Switching clears
+  // their lesson progress, and kids can reach Settings, so ask first.
+  const [pendingBand, setPendingBand] = useState(null);
   const user = useGameStore((s) => s.user);
   const updateSettings = useGameStore((s) => s.updateSettings);
   const loadUser = useGameStore((s) => s.loadUser);
@@ -57,6 +60,7 @@ export default function SettingsPanel() {
             onClick={() => {
               setOpen(false);
               setConfirmReset(false);
+              setPendingBand(null);
             }}
           />
           <motion.div
@@ -73,6 +77,7 @@ export default function SettingsPanel() {
                 onClick={() => {
                   setOpen(false);
                   setConfirmReset(false);
+                  setPendingBand(null);
                 }}
               >
                 ✕
@@ -86,13 +91,35 @@ export default function SettingsPanel() {
                   <button
                     key={b.value}
                     className={`${styles.option} ${user.ageBand === b.value ? styles.selected : ''}`}
-                    onClick={() => updateSettings({ ageBand: b.value })}
+                    onClick={() => setPendingBand(b.value === user.ageBand ? null : b.value)}
                   >
                     <span className={styles.optLabel}>{b.label}</span>
                     <span className={styles.optDesc}>{b.value}</span>
                   </button>
                 ))}
               </div>
+              {pendingBand && (
+                <div className={styles.confirmBox}>
+                  <p className={styles.confirmText}>
+                    Switch to {AGE_BANDS.find((b) => b.value === pendingBand).label}? This restarts the
+                    learning path: completed lessons and stars are cleared. XP and streak are kept.
+                  </p>
+                  <div className={styles.confirmActions}>
+                    <button
+                      className={styles.confirmYes}
+                      onClick={() => {
+                        updateSettings({ ageBand: pendingBand });
+                        setPendingBand(null);
+                      }}
+                    >
+                      Yes, switch
+                    </button>
+                    <button className={styles.confirmNo} onClick={() => setPendingBand(null)}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className={styles.section}>
