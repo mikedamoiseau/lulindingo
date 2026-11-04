@@ -594,6 +594,22 @@ describe('daily quests', () => {
     }
   });
 
+  it('finishing a unit swaps out an unfinished quest for that unit (it could never be completed)', async () => {
+    const { id } = getStore().user;
+    const today = getLocalDateString();
+    await getStore().ensureTodayQuests();
+    await db.dailyQuests.update([id, today], { questIds: ['streak-5', 'answer-10-add', 'stars-3'] });
+    for (let t = 1; t <= 4; t++) {
+      await db.progress.put({ userId: id, lessonId: `math-addition-lesson-${t}`, completed: true, stars: 3, bestAccuracy: 100, attempts: 1 });
+    }
+    await getStore().completeLesson('math-addition-lesson-5', 100); // now in subtraction
+
+    const row = await db.dailyQuests.get([id, today]);
+    expect(row.questIds).toHaveLength(3);
+    expect(row.questIds).not.toContain('answer-10-add');
+    expect([row.questIds[0], row.questIds[2]]).toEqual(['streak-5', 'stars-3']);
+  });
+
   it('ensureTodayQuests is idempotent (does not overwrite progress)', async () => {
     await getStore().ensureTodayQuests();
     await getStore().bumpQuestStats((row) => ({ answerCount: row.answerCount + 5 }));

@@ -6,6 +6,7 @@ import {
   evaluateQuest,
   allQuestsDone,
   questLabel,
+  replaceStuckQuests,
 } from '../dailyQuests';
 
 describe('dateSeed', () => {
@@ -139,5 +140,40 @@ describe('selectDailyQuests with playable operations', () => {
     for (const date of dates) {
       expect(selectDailyQuests(date, '8-10', []).every((q) => q.operation === null)).toBe(true);
     }
+  });
+});
+
+describe('replaceStuckQuests (child moved on to another unit mid-day)', () => {
+  const stats = (over = {}) => ({
+    answerCount: 8,
+    answerByOperation: { addition: 8, subtraction: 0, multiplication: 0, division: 0 },
+    bestStreakInSession: 3,
+    lessonCount: 1,
+    bestLessonStars: 2,
+    ...over,
+  });
+  const byId = (id) => QUEST_CATALOG.find((q) => q.id === id);
+
+  it('swaps an unfinished quest for a finished unit, keeping the others in place', () => {
+    const before = ['streak-5', 'answer-10-add', 'stars-3'];
+    const after = replaceStuckQuests(before, stats(), ['subtraction']);
+    expect(after).toHaveLength(3);
+    expect(after[0]).toBe('streak-5');
+    expect(after[2]).toBe('stars-3');
+    const swapped = byId(after[1]);
+    expect(before).not.toContain(swapped.id);
+    expect([null, 'subtraction']).toContain(swapped.operation);
+    expect(evaluateQuest(swapped, stats()).done).toBe(false); // a real quest, not a freebie
+  });
+
+  it('keeps an operation quest that is already done', () => {
+    const before = ['streak-5', 'answer-10-add', 'stars-3'];
+    const done = stats({ answerByOperation: { addition: 10, subtraction: 0, multiplication: 0, division: 0 } });
+    expect(replaceStuckQuests(before, done, ['subtraction'])).toEqual(before);
+  });
+
+  it('changes nothing while the operation is still playable', () => {
+    const before = ['streak-5', 'answer-10-add', 'stars-3'];
+    expect(replaceStuckQuests(before, stats(), ['addition'])).toEqual(before);
   });
 });

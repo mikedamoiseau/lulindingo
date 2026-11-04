@@ -105,6 +105,40 @@ export function evaluateQuest(quest, stats) {
   return { progress, target: quest.target, done: raw >= quest.target };
 }
 
+/**
+ * Quests are picked once a day, but a child can finish a unit mid-day. An
+ * unfinished operation quest for an operation they can no longer play (the
+ * finished unit collapses and practice doesn't count) would then be stuck.
+ * Swap each such quest, in place, for an achievable one that isn't done yet,
+ * preferring a quest type not already on the board. Others are kept as-is.
+ *
+ * @param {string[]} questIds - today's quest ids
+ * @param {object} stats - today's quest row (answer counts etc.)
+ * @param {string[]} playableOps - operations whose answers can count now
+ * @returns {string[]} the same ids, or a copy with stuck quests replaced
+ */
+export function replaceStuckQuests(questIds, stats, playableOps) {
+  const byId = (id) => QUEST_CATALOG.find((q) => q.id === id);
+  const isStuck = (q) =>
+    q?.operation && !playableOps.includes(q.operation) && !evaluateQuest(q, stats).done;
+  if (!questIds.some((id) => isStuck(byId(id)))) return questIds;
+
+  const result = [...questIds];
+  for (let i = 0; i < result.length; i++) {
+    if (!isStuck(byId(result[i]))) continue;
+    const usedTypes = new Set(result.filter((_, j) => j !== i).map((id) => byId(id)?.type));
+    const candidates = QUEST_CATALOG.filter(
+      (q) =>
+        !result.includes(q.id) &&
+        (!q.operation || playableOps.includes(q.operation)) &&
+        !evaluateQuest(q, stats).done
+    );
+    const pick = candidates.find((q) => !usedTypes.has(q.type)) ?? candidates[0];
+    if (pick) result[i] = pick.id;
+  }
+  return result;
+}
+
 export function allQuestsDone(quests, stats) {
   return quests.length > 0 && quests.every((q) => evaluateQuest(q, stats).done);
 }
