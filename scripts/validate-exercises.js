@@ -164,6 +164,11 @@ function validateExercise(ctx, operation, ageBand, ex) {
     if (ex.correctAnswer > capM) {
       err(ctx, `missing-number answer ${ex.correctAnswer} exceeds max ${capM} ("${ex.equation}")`);
     }
+    // A missing factor means dividing by the known one: it must be a
+    // times-table number (≤ 12), never a long division in disguise.
+    if (operation === 'multiplication' && ex.correctAnswer > 12) {
+      err(ctx, `missing-number factor ${ex.correctAnswer} > 12 is long division ("${ex.equation}")`);
+    }
     if (operation === 'division') {
       if (ex.blankSlot !== 'a') {
         err(ctx, `missing-number division must blank the dividend (got slot "${ex.blankSlot}")`);

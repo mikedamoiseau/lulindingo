@@ -458,9 +458,9 @@ describe('difficulty curve — Explorer (8-10) multiplication', () => {
     }
   });
 
-  it('tier 5 is a 2-digit number times a 1-digit number', () => {
+  it('tier 5 is a small 2-digit number times a 1-digit number', () => {
     for (const { a, b } of sample('multiplication', '8-10', 5)) {
-      const twoByOne = (x, y) => inRange(x, 12, 49) && inRange(y, 3, 9);
+      const twoByOne = (x, y) => inRange(x, 12, 29) && inRange(y, 3, 9);
       expect(twoByOne(a, b) || twoByOne(b, a)).toBe(true);
     }
   });
@@ -487,10 +487,10 @@ describe('difficulty curve — Explorer (8-10) division', () => {
     }
   });
 
-  it('tier 5 divides by a 1-digit number with a 2-digit answer', () => {
+  it('tier 5 divides by a 1-digit number with a small 2-digit answer', () => {
     for (const p of sample('division', '8-10', 5)) {
       expect(exact(p)).toBe(true);
-      expect(inRange(p.b, 3, 9) && inRange(p.result, 12, 49)).toBe(true);
+      expect(inRange(p.b, 3, 9) && inRange(p.result, 12, 29)).toBe(true);
     }
   });
 });
@@ -743,6 +743,18 @@ describe('generateExercises — missing-number', () => {
       }
     }
   );
+
+  it('a missing multiplication factor is always a times-table number (never long division)', () => {
+    // "[] × 47 = 1833" is really 1833 ÷ 47. The blank must be the small
+    // factor (≤ 12) so it can be found by trying times-table facts.
+    for (const band of ['6-7', '8-10', '11-12']) {
+      for (const tier of [1, 2, 3, 4, 5]) {
+        for (const ex of missingOnly('multiplication', band, tier)) {
+          expect(ex.correctAnswer).toBeLessThanOrEqual(12);
+        }
+      }
+    }
+  });
 
   it('division only ever blanks the dividend (never the divisor)', () => {
     const list = missingOnly('division', '8-10', 3);

@@ -102,7 +102,7 @@ const CURRICULUM = {
       { a: ONE_OF(3, 4, 8), b: R(2, 10) },
       { a: ONE_OF(6, 7, 9), b: R(2, 10) },
       { a: R(2, 12), b: R(2, 12) },           // all tables up to 12 × 12
-      { a: R(3, 9), b: R(12, 49) },           // 2-digit × 1-digit: 37 × 6
+      { a: R(3, 9), b: R(12, 29) },           // 2-digit × 1-digit: 23 × 6
     ],
     '11-12': [
       { a: R(2, 12), b: R(2, 12) },           // tables warm-up
@@ -125,7 +125,7 @@ const CURRICULUM = {
       { divisor: ONE_OF(3, 4, 8), quotient: R(2, 10) },
       { divisor: ONE_OF(6, 7, 9), quotient: R(2, 10) },
       { divisor: R(2, 12), quotient: R(2, 12) },    // within the 12 × 12 tables
-      { divisor: R(3, 9), quotient: R(12, 49) },    // 1-digit divisor, 2-digit answer: 222 ÷ 6
+      { divisor: R(3, 9), quotient: R(12, 29) },    // 1-digit divisor, 2-digit answer: 138 ÷ 6
     ],
     '11-12': [
       { divisor: R(2, 12), quotient: R(2, 12) },
@@ -433,12 +433,14 @@ function buildMissingNumberExercise(operation, ageBand, tier) {
   const legal = MISSING_SLOTS[operation];
   let blankSlot = legal[randInt(0, legal.length - 1)];
 
-  // Guard against blanking a slot whose known operand is 0 for × (avoids /0
-  // recovery ambiguity). Multiplication operands are ≥ 1 in practice, so this
-  // is belt-and-suspenders.
+  // A missing factor is really a division ("[] × 47 = 1833" is 1833 ÷ 47), so
+  // only ever blank a times-table factor (≤ 12), which a child can find by
+  // trying facts. With a 2-digit partner, blank the small one; when both
+  // factors are bigger than 12 there is no fair blank, so fall back.
   if (operation === 'multiplication') {
-    if (blankSlot === 'a' && t.b === 0) blankSlot = 'b';
-    else if (blankSlot === 'b' && t.a === 0) blankSlot = 'a';
+    const small = Math.min(t.a, t.b);
+    if (small > 12) return null;
+    if (Math.max(t.a, t.b) > 12) blankSlot = t.a === small ? 'a' : 'b';
   }
 
   const correctAnswer = blankSlot === 'a' ? t.a : t.b;
