@@ -76,8 +76,10 @@ export default function LessonEngine() {
   const maxExercises = getMaxExercises(ageBand);
   const activeExercises = useMemo(() => {
     if (isReview) {
-      const factList = facts ?? [];
-      const progressList = progress ?? [];
+      // Not loaded yet (the loading screen shows): don't build a throwaway set.
+      if (facts === undefined || progress === undefined) return [];
+      const factList = facts;
+      const progressList = progress;
       const startingTier = user?.startingTier ?? 1;
 
       // Current tier in an operation = how many of its 5 lessons are completed,
@@ -89,15 +91,18 @@ export default function LessonEngine() {
         return Math.min(5, Math.max(1, completed || startingTier || 1));
       };
 
-      // Operations the child has actually started (any completed lesson) —
-      // avoids surfacing division facts to a kid who's only done addition.
+      // Operations the child has actually played (a lesson they completed
+      // themselves) — avoids surfacing division facts to a kid who's only done
+      // addition. Rows auto-completed by the age band / placement skip have
+      // attempts 0 and don't count: an 11-12 child never played addition.
       const ALL_OPS = ['addition', 'subtraction', 'multiplication', 'division'];
       let activeOps = ALL_OPS.filter((op) =>
-        progressList.some((p) => p.completed && p.lessonId.startsWith(`math-${op}-`))
+        progressList.some((p) => p.completed && p.attempts > 0 && p.lessonId.startsWith(`math-${op}-`))
       );
 
-      // Prefer ops that actually have weak facts to review.
-      const opsWithWeak = activeOps.filter(
+      // Prefer ops that actually have weak facts to review. Facts only exist
+      // for answers the child gave, so any op with weak facts was played.
+      const opsWithWeak = ALL_OPS.filter(
         (op) => selectWeakFactTargets(factList, { operation: op, max: 1 }).length > 0
       );
       const reviewOps = (opsWithWeak.length ? opsWithWeak : activeOps);
@@ -139,8 +144,11 @@ export default function LessonEngine() {
       return base.map((ex, i) => buildEstimationExercise(ex, i % 2 === 0 ? 'bucket' : 'type'));
     }
     return generateExercises(lesson.operation, ageBand, lesson.tier, maxExercises);
+    // Review reads facts/progress ONCE, when they first load. Depending on the
+    // live arrays regenerated the whole set mid-run, because every answer
+    // writes to db.facts (the question changed under the feedback banner).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lesson?.id, ageBand, isEstimation, isReview, facts, progress]);
+  }, [lesson?.id, ageBand, isEstimation, isReview, facts === undefined, progress === undefined]);
   const currentExercise = activeExercises[exerciseIndex];
 
   useEffect(() => {
@@ -150,9 +158,17 @@ export default function LessonEngine() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exerciseIndex, currentExercise?.equation, readAloud, showSummary]);
 
+  // Every lesson starts from zero. Counters were only reset by the ✕ / Finish
+  // buttons, so leaving with the browser back button carried them over.
+  useEffect(() => {
+    resetLesson();
+  }, [id, resetLesson]);
+
   const handleAnswer = useCallback(
     (answer) => {
-      if (!currentExercise) return;
+      // Ignore answers while a feedback banner is up — CHECK stayed live and
+      // could grade the same question twice (double XP, accuracy over 100%).
+      if (!currentExercise || feedback) return;
 
       const isCorrect = currentExercise.estimation
         ? currentExercise.estimationMode === 'bucket'
@@ -206,7 +222,7 @@ export default function LessonEngine() {
         }
       }
     },
-    [currentExercise, retryUsed, isPractice, isEstimation, addLessonXp, recordAnswer, loseHeart, lesson?.operation]
+    [currentExercise, feedback, retryUsed, isPractice, isEstimation, addLessonXp, recordAnswer, loseHeart, lesson?.operation]
   );
 
   const handleContinue = useCallback(async () => {
