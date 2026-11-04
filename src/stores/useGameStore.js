@@ -7,6 +7,7 @@ import { getSkippedLessonIds, getPlacementSkippedLessonIds, getFirstActiveUnitId
 import { selectDailyQuests, allQuestsDone, QUEST_CATALOG } from '../utils/dailyQuests';
 import { signatureForExercise, applyOutcome, isDue } from '../utils/factTracking';
 import { bucketHour } from '../utils/insights';
+import { getUnitStates } from '../utils/progression';
 import {
   createDefaultLayout,
   migrateLayout,
@@ -272,7 +273,17 @@ const useGameStore = create((set, get) => ({
     const today = getLocalDateString();
     const existing = await db.dailyQuests.get([user.id, today]);
     if (existing) return;
-    const quests = selectDailyQuests(today, user.ageBand);
+    // Operation quests must match the unit the child is in: only current-unit
+    // lessons accrue quest progress (practice replays are exempt).
+    const [units, lessons, progress] = await Promise.all([
+      db.units.where('moduleId').equals('math').sortBy('order'),
+      db.lessons.toArray(),
+      db.progress.where('userId').equals(user.id).toArray(),
+    ]);
+    const progressMap = Object.fromEntries(progress.map((p) => [p.lessonId, p]));
+    const currentUnit = getUnitStates(units, lessons, progressMap).find((u) => u.isCurrentUnit)?.unit;
+    const playableOps = currentUnit ? [currentUnit.operation] : [];
+    const quests = selectDailyQuests(today, user.ageBand, playableOps);
     await db.dailyQuests.put({
       userId: user.id,
       date: today,

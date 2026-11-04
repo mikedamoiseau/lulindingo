@@ -111,3 +111,33 @@ describe('questLabel', () => {
     expect(questLabel(q)).toMatch(/10/);
   });
 });
+
+describe('selectDailyQuests with playable operations', () => {
+  const dates = Array.from({ length: 120 }, (_, i) => {
+    const d = new Date(Date.UTC(2026, 0, 1 + i));
+    return d.toISOString().slice(0, 10);
+  });
+
+  it('only offers an operation quest for the operation the child can play today', () => {
+    for (const date of dates) {
+      for (const band of ['6-7', '8-10', '11-12']) {
+        const quests = selectDailyQuests(date, band, ['subtraction']);
+        expect(quests).toHaveLength(3);
+        for (const q of quests) expect([null, 'subtraction']).toContain(q.operation);
+      }
+    }
+  });
+
+  it('still offers the matching operation quest', () => {
+    const offered = dates.some((date) =>
+      selectDailyQuests(date, '8-10', ['multiplication']).some((q) => q.id === 'answer-10-mul')
+    );
+    expect(offered).toBe(true);
+  });
+
+  it('offers no operation quest when nothing is playable (every unit finished)', () => {
+    for (const date of dates) {
+      expect(selectDailyQuests(date, '8-10', []).every((q) => q.operation === null)).toBe(true);
+    }
+  });
+});

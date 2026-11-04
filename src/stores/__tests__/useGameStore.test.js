@@ -578,6 +578,22 @@ describe('daily quests', () => {
     expect(row.answerCount).toBe(0);
   });
 
+  it('ensureTodayQuests never picks an operation quest the child cannot play yet', async () => {
+    // On this date the 8-10 pick includes "Answer 10 multiplication questions",
+    // but a new Explorer is in the addition unit — practice doesn't count, so
+    // that quest could never be completed.
+    vi.useFakeTimers({ toFake: ['Date'] }); // clock only — fake-indexeddb needs real timers
+    vi.setSystemTime(new Date('2026-06-08T09:00:00'));
+    try {
+      await getStore().ensureTodayQuests();
+      const row = await db.dailyQuests.get([getStore().user.id, '2026-06-08']);
+      expect(row.questIds).toHaveLength(3);
+      expect(row.questIds).not.toContain('answer-10-mul');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('ensureTodayQuests is idempotent (does not overwrite progress)', async () => {
     await getStore().ensureTodayQuests();
     await getStore().bumpQuestStats((row) => ({ answerCount: row.answerCount + 5 }));

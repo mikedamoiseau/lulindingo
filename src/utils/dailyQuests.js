@@ -47,11 +47,20 @@ function seededShuffle(items, rng) {
   return arr;
 }
 
-export function selectDailyQuests(dateString, ageBand) {
+/**
+ * @param {string} dateString
+ * @param {string} ageBand
+ * @param {string[]} [playableOps] - operations whose answers can count today.
+ *   Only current-unit lessons accrue quest progress (practice is exempt), so
+ *   an "Answer 10 multiplication questions" quest is impossible for a child in
+ *   the addition unit. When given, operation quests are limited to these.
+ *   Omitted → every operation the age band practises.
+ */
+export function selectDailyQuests(dateString, ageBand, playableOps) {
   const skippedOps = SKIPPED_OPERATIONS_BY_BAND[ageBand] || [];
-  const achievable = QUEST_CATALOG.filter(
-    (q) => !q.operation || !skippedOps.includes(q.operation)
-  );
+  const canPlay = (op) =>
+    playableOps ? playableOps.includes(op) : !skippedOps.includes(op);
+  const achievable = QUEST_CATALOG.filter((q) => !q.operation || canPlay(q.operation));
   const rng = mulberry32(dateSeed(dateString));
   const shuffled = seededShuffle(achievable, rng);
 
