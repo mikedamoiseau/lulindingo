@@ -4,9 +4,10 @@ import { getActiveUserId, setActiveUserId, clearActiveUserId } from '../db/profi
 import { calculateCurrentHearts, MAX_HEARTS } from '../utils/heartManager';
 import { getLocalDateString, calculateStreak } from '../utils/streakTracker';
 import { getSkippedLessonIds, getPlacementSkippedLessonIds, getFirstActiveUnitId } from '../utils/skipUnits';
-import { selectDailyQuests, allQuestsDone, QUEST_CATALOG } from '../utils/dailyQuests';
+import { selectDailyQuests, allQuestsDone, QUEST_CATALOG, replaceStuckQuests } from '../utils/dailyQuests';
 import { signatureForExercise, applyOutcome, isDue } from '../utils/factTracking';
 import { bucketHour } from '../utils/insights';
+import { getUnitStates } from '../utils/progression';
 import {
   createDefaultLayout,
   migrateLayout,
@@ -21,6 +22,22 @@ import {
  */
 export function getDueFactCount(facts, today = getLocalDateString()) {
   return (facts ?? []).filter((f) => isDue(f, today)).length;
+}
+
+/**
+ * Operations whose answers can count toward today's quests: only the current
+ * unit's lessons accrue quest progress (practice replays are exempt), so that
+ * is the one operation. Empty once every unit is finished.
+ */
+async function questPlayableOps(userId) {
+  const [units, lessons, progress] = await Promise.all([
+    db.units.where('moduleId').equals('math').sortBy('order'),
+    db.lessons.toArray(),
+    db.progress.where('userId').equals(userId).toArray(),
+  ]);
+  const progressMap = Object.fromEntries(progress.map((p) => [p.lessonId, p]));
+  const currentUnit = getUnitStates(units, lessons, progressMap).find((u) => u.isCurrentUnit)?.unit;
+  return currentUnit ? [currentUnit.operation] : [];
 }
 
 const useGameStore = create((set, get) => ({
@@ -178,9 +195,14 @@ const useGameStore = create((set, get) => ({
 
   loseHeart: async () => {
     const { user } = get();
-    if (!user || user.hearts <= 0) return;
-    const hearts = user.hearts - 1;
-    const heartsLastRefill = new Date();
+    if (!user) return;
+    // Apply refills already earned first, and keep the running refill clock:
+    // the 20-minute timer only (re)starts when hearts drop from full.
+    // Restarting it on every loss threw away the minutes already earned.
+    const current = calculateCurrentHearts(user.hearts, user.heartsLastRefill);
+    if (current.hearts <= 0) return;
+    const hearts = current.hearts - 1;
+    const heartsLastRefill = current.hearts >= MAX_HEARTS ? new Date() : current.heartsLastRefill;
     await db.users.update(user.id, { hearts, heartsLastRefill });
     set({ user: { ...user, hearts, heartsLastRefill } });
   },
@@ -267,7 +289,8 @@ const useGameStore = create((set, get) => ({
     const today = getLocalDateString();
     const existing = await db.dailyQuests.get([user.id, today]);
     if (existing) return;
-    const quests = selectDailyQuests(today, user.ageBand);
+    const playableOps = await questPlayableOps(user.id);
+    const quests = selectDailyQuests(today, user.ageBand, playableOps);
     await db.dailyQuests.put({
       userId: user.id,
       date: today,
@@ -279,6 +302,17 @@ const useGameStore = create((set, get) => ({
       lessonCount: 0,
       bestLessonStars: 0,
     });
+  },
+
+  // After the child moves to another unit (finished one, or changed age band),
+  // swap out unfinished quests for an operation they can no longer play.
+  refreshTodayQuests: async () => {
+    const { user } = get();
+    if (!user) return;
+    const playableOps = await questPlayableOps(user.id);
+    await get().bumpQuestStats((row) =>
+      row.claimed ? {} : { questIds: replaceStuckQuests(row.questIds, row, playableOps) }
+    );
   },
 
   // Merge a patch into today's row, re-reading the date each time so a
@@ -457,6 +491,8 @@ const useGameStore = create((set, get) => ({
         lessonCount: row.lessonCount + 1,
         bestLessonStars: Math.max(row.bestLessonStars, stars),
       }));
+      // This lesson may have finished the unit.
+      await get().refreshTodayQuests();
     }
   },
 
@@ -497,7 +533,9 @@ const useGameStore = create((set, get) => ({
     if (!user) return;
     await db.users.update(user.id, settings);
 
-    if (settings.ageBand) {
+    // Only a real band change resets progress — tapping the band the child is
+    // already on used to wipe everything.
+    if (settings.ageBand && settings.ageBand !== user.ageBand) {
       // Reset ONLY the active child's progress — siblings must be untouched.
       await db.progress.where('userId').equals(user.id).delete();
       const allLessons = await db.lessons.toArray();
@@ -518,6 +556,9 @@ const useGameStore = create((set, get) => ({
     }
 
     set({ user: { ...user, ...settings } });
+    if (settings.ageBand && settings.ageBand !== user.ageBand) {
+      await get().refreshTodayQuests(); // the current unit changed
+    }
   },
 }));
 

@@ -46,7 +46,7 @@ export const THEME_BANK = {
     ],
   },
   multiplication: {
-    // 6-7 never reaches the multiplication unit; no templates needed.
+    // 6-7 falls back to the 8-10 template (its numbers are ×2 / ×5 / ×10).
     '8-10': [
       (a, b) => `There are ${a} ${plural(a, 'basket')} with ${b} ${plural(b, 'apple')} in each. How many apples in all?`,
     ],
@@ -56,7 +56,7 @@ export const THEME_BANK = {
     ],
   },
   division: {
-    // 6-7 never reaches the division unit.
+    // 6-7 falls back to the 8-10 template (÷2 / ÷5 / ÷10, exact).
     '8-10': [
       // a = dividend, b = divisor, answer = quotient (exact division path)
       (a, b) => `Dingo shares ${a} ${plural(a, 'treat')} equally among ${b} ${plural(b, 'friend')}. How many does each friend get?`,

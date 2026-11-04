@@ -19,10 +19,122 @@ import { wrapStory, plural } from './storyTemplates.js';
 // Constants
 // ---------------------------------------------------------------------------
 
-const AGE_BAND_MAX = {
-  '6-7': 20,
-  '8-10': 1_000,
-  '11-12': 1_000_000,
+// ---------------------------------------------------------------------------
+// Curriculum — what each tier (lesson 1-5 of a unit) practises
+// ---------------------------------------------------------------------------
+//
+// One small skill step per tier, and every problem stays solvable without a
+// calculator. (The old approach sliced each age band's whole number range into
+// five linear windows, so Explorer multiplication jumped from 6 × 6 straight
+// to 18 × 17, and Challenger division asked things like 44 ÷ 78 = 0.56.)
+//
+//   R(lo, hi)     any integer in [lo, hi]
+//   ONE_OF(...)   one of these values (e.g. a times table)
+//
+// addition / subtraction: a op b (subtraction keeps b ≤ a).
+// multiplication: a × b — `a` is the times table, `b` the multiplier
+//   (follow-pattern steps `b`, so it reads 3 × 7, 4 × 7, 5 × 7).
+// division: divisor × quotient = dividend, so the answer is always exact.
+//   `decimal` tiers instead draw a dividend that is NOT a multiple of the
+//   divisor; every decimal divisor divides 100, so the answer terminates
+//   within 2 decimal places (37 ÷ 4 = 9.25) — it is never rounded.
+const R = (lo, hi) => ({ lo, hi });
+const ONE_OF = (...values) => ({ values });
+
+const CURRICULUM = {
+  addition: {
+    '6-7': [
+      { a: R(1, 5), b: R(1, 4) },       // sums to 9
+      { a: R(4, 7), b: R(1, 3) },       // sums to 10
+      { a: R(10, 15), b: R(1, 4) },     // teen + small, no bridging: 12 + 4
+      { a: R(5, 9), b: R(5, 9) },       // bridging ten: 7 + 8
+      { a: R(6, 12), b: R(4, 8) },      // mixed, up to 20
+    ],
+    '8-10': [
+      { a: R(10, 59), b: R(10, 39) },     // 2-digit + 2-digit, under 100
+      { a: R(20, 99), b: R(11, 99) },     // 2-digit + 2-digit, crossing 100
+      { a: R(100, 499), b: R(11, 99) },   // 3-digit + 2-digit
+      { a: R(100, 400), b: R(100, 300) }, // 3-digit + 3-digit
+      { a: R(250, 600), b: R(150, 399) }, // 3-digit + 3-digit, up to 999
+    ],
+    '11-12': [
+      { a: R(100, 999), b: R(100, 999) },
+      { a: R(1_000, 4_999), b: R(100, 999) },
+      { a: R(1_000, 4_999), b: R(1_000, 4_999) },
+      { a: R(10_000, 49_999), b: R(1_000, 9_999) },
+      { a: R(10_000, 59_999), b: R(10_000, 39_999) },
+    ],
+  },
+  subtraction: {
+    '6-7': [
+      { a: R(2, 5), b: R(1, 4) },       // within 5
+      { a: R(6, 10), b: R(1, 5) },      // within 10
+      { a: R(14, 19), b: R(1, 4) },     // teen − small, no bridging: 17 − 3
+      { a: R(11, 15), b: R(4, 9) },     // bridging ten: 13 − 7
+      { a: R(12, 20), b: R(3, 12) },    // mixed, up to 20
+    ],
+    '8-10': [
+      { a: R(20, 99), b: R(3, 19) },      // 2-digit − small, under 100
+      { a: R(30, 99), b: R(11, 89) },     // 2-digit − 2-digit
+      { a: R(100, 499), b: R(11, 99) },   // 3-digit − 2-digit
+      { a: R(200, 700), b: R(100, 299) }, // 3-digit − 3-digit
+      { a: R(400, 999), b: R(150, 699) }, // 3-digit − 3-digit, borrowing across zeros
+    ],
+    '11-12': [
+      { a: R(200, 999), b: R(100, 899) },
+      { a: R(1_000, 9_999), b: R(100, 999) },
+      { a: R(1_000, 9_999), b: R(1_000, 8_999) },
+      { a: R(10_000, 99_999), b: R(1_000, 9_999) },
+      { a: R(10_000, 99_999), b: R(10_000, 89_999) },
+    ],
+  },
+  multiplication: {
+    '6-7': [
+      // Multipliers start at 2 so stories never read "There are 1 basket…".
+      { a: ONE_OF(2), b: R(2, 5) },           // small doubles
+      { a: ONE_OF(2), b: R(2, 10) },          // doubles up to 20
+      { a: ONE_OF(10), b: R(2, 10) },
+      { a: ONE_OF(5), b: R(2, 10) },
+      { a: ONE_OF(2, 5, 10), b: R(2, 10) },
+    ],
+    '8-10': [
+      { a: ONE_OF(2, 5, 10), b: R(2, 10) },
+      { a: ONE_OF(3, 4, 8), b: R(2, 10) },
+      { a: ONE_OF(6, 7, 9), b: R(2, 10) },
+      { a: R(2, 12), b: R(2, 12) },           // all tables up to 12 × 12
+      { a: R(3, 9), b: R(12, 29) },           // 2-digit × 1-digit: 23 × 6
+    ],
+    '11-12': [
+      { a: R(2, 12), b: R(2, 12) },           // tables warm-up
+      { a: R(2, 9), b: R(12, 99) },           // 2-digit × 1-digit
+      { a: R(2, 9), b: R(100, 999) },         // 3-digit × 1-digit
+      { a: R(11, 19), b: R(12, 99) },         // 2-digit × teen
+      { a: R(11, 49), b: R(21, 99) },         // 2-digit × 2-digit
+    ],
+  },
+  division: {
+    '6-7': [
+      { divisor: ONE_OF(2), quotient: R(1, 5) },
+      { divisor: ONE_OF(2), quotient: R(1, 10) },   // halves
+      { divisor: ONE_OF(10), quotient: R(1, 10) },
+      { divisor: ONE_OF(5), quotient: R(1, 10) },
+      { divisor: ONE_OF(2, 5, 10), quotient: R(1, 10) },
+    ],
+    '8-10': [
+      { divisor: ONE_OF(2, 5, 10), quotient: R(2, 10) },
+      { divisor: ONE_OF(3, 4, 8), quotient: R(2, 10) },
+      { divisor: ONE_OF(6, 7, 9), quotient: R(2, 10) },
+      { divisor: R(2, 12), quotient: R(2, 12) },    // within the 12 × 12 tables
+      { divisor: R(3, 9), quotient: R(12, 29) },    // 1-digit divisor, 2-digit answer: 138 ÷ 6
+    ],
+    '11-12': [
+      { divisor: R(2, 12), quotient: R(2, 12) },
+      { divisor: R(3, 9), quotient: R(12, 99) },                                  // 456 ÷ 8
+      { divisor: ONE_OF(2, 4, 5, 10), dividend: R(11, 99), decimal: true },       // 37 ÷ 4 = 9.25
+      { divisor: R(11, 25), quotient: R(3, 30) },                                 // 312 ÷ 12
+      { divisor: ONE_OF(4, 5, 20, 25), dividend: R(101, 999), decimal: true },    // 347 ÷ 4 = 86.75
+    ],
+  },
 };
 
 // Cycle of exercise interaction types. The two equation-puzzle types
@@ -73,19 +185,26 @@ function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-/**
- * Return the [lo, hi] window for a given tier (1-5) within [0, rangeMax].
- * Tier 1 → bottom 20 %, tier 5 → top 20 %, tiers in between overlap.
- *
- * Each tier owns a 20 % slice of the range; we make the window slightly
- * generous (±5 % either side of the centre) so that all values in the
- * slice can be produced.
- */
-function tierWindow(rangeMax, tier) {
-  const sliceSize = rangeMax * 0.2;
-  const lo = Math.floor(sliceSize * (tier - 1));
-  const hi = Math.min(rangeMax, Math.ceil(sliceSize * tier));
-  return [lo, hi];
+/** Draw a value from an R(lo, hi) or ONE_OF(...) spec. */
+function pick(spec) {
+  return spec.values ? spec.values[randInt(0, spec.values.length - 1)] : randInt(spec.lo, spec.hi);
+}
+
+/** Largest value an R / ONE_OF spec can produce. */
+function specMax(spec) {
+  return spec.values ? Math.max(...spec.values) : spec.hi;
+}
+
+/** Curriculum row for this operation × age band × tier (tier clamped to 1-5). */
+function tierSpec(operation, ageBand, tier) {
+  const bands = CURRICULUM[operation];
+  const tiers = bands[ageBand] ?? bands['11-12'];
+  return tiers[Math.min(5, Math.max(1, tier)) - 1];
+}
+
+/** First value of a 3-step run (start, +1, +2) that stays inside an R spec. */
+function stepStart(range) {
+  return randInt(range.lo, Math.max(range.lo, range.hi - 2));
 }
 
 // ---------------------------------------------------------------------------
@@ -189,107 +308,95 @@ function shuffle(arr) {
 }
 
 // ---------------------------------------------------------------------------
-// Operation-specific number generators
+// Number drawing — every exercise type takes its operands from CURRICULUM
 // ---------------------------------------------------------------------------
 
-function buildAdditionExercise(exType, rangeMax, tier, ageBand) {
-  const [lo, hi] = tierWindow(rangeMax, tier);
-  // sum ∈ [lo, hi], split into two addends
-  const sum = randInt(lo, hi);
-  const a = randInt(0, sum);
-  const b = sum - a;
-  const equation = `${a} + ${b} = []`;
-  const correctAnswer = sum;
-
-  return buildExerciseForType(exType, equation, correctAnswer, false,
-    { operation: 'addition', ageBand, a, b });
+/**
+ * Integer quotient range for a division row. Decimal rows have no `quotient`;
+ * when a whole-number answer is needed (stories, patterns, remainders) we use
+ * the quotients whose dividend stays inside the row's dividend range.
+ */
+function quotientRange(spec, divisor) {
+  if (!spec.decimal) return spec.quotient;
+  return R(
+    Math.max(1, Math.ceil(spec.dividend.lo / divisor)),
+    Math.max(1, Math.floor(spec.dividend.hi / divisor))
+  );
 }
 
-function buildSubtractionExercise(exType, rangeMax, tier, ageBand) {
-  const [lo, hi] = tierWindow(rangeMax, tier);
-  // minuend ∈ [lo, hi], ensure result >= 0
-  const a = randInt(lo, hi);
-  const b = randInt(0, a);
-  const correctAnswer = a - b;
-  const equation = `${a} - ${b} = []`;
-
-  return buildExerciseForType(exType, equation, correctAnswer, false,
-    { operation: 'subtraction', ageBand, a, b });
-}
-
-function buildMultiplicationExercise(exType, ageBand, tier) {
-  const factorMax = ageBand === '11-12' ? 1000 : 50;
-  const [lo, hi] = tierWindow(factorMax, tier);
-  const a = randInt(Math.max(1, lo), hi);
-  const b = randInt(Math.max(1, lo), hi);
-  const correctAnswer = a * b;
-  const equation = `${a} × ${b} = []`;
-
-  return buildExerciseForType(exType, equation, correctAnswer, false,
-    { operation: 'multiplication', ageBand, a, b });
-}
-
-function buildDivisionExercise(exType, ageBand, tier, variant) {
-  if (variant === 'remainder') {
-    const factorMax = ageBand === '11-12' ? 1000 : 50;
-    const [lo, hi] = tierWindow(factorMax, tier);
-    let dividend, divisor, quotient, remainder, attempts = 0;
+/**
+ * Draw an exact division for a curriculum row → { dividend, divisor, quotient }.
+ * Decimal rows give a terminating (≤ 2dp) answer unless `integerOnly` is set.
+ */
+function drawDivision(spec, { integerOnly = false } = {}) {
+  const divisor = pick(spec.divisor);
+  if (spec.decimal && !integerOnly) {
+    let dividend;
     do {
-      divisor = randInt(2, Math.max(2, Math.min(12, hi))); // small divisor keeps it kid-friendly
-      dividend = randInt(Math.max(divisor + 1, lo), Math.max(divisor + 1, hi));
-      quotient = Math.floor(dividend / divisor);
-      remainder = dividend % divisor;
-      attempts++;
-    } while (remainder === 0 && attempts < 50);
-    if (remainder === 0) { remainder = 1; dividend = quotient * divisor + 1; } // guaranteed non-zero
-    const correctAnswer = `${quotient} r ${remainder}`;
-    const equation = `${dividend} ÷ ${divisor} = []`;
-    const base = { equation, correctAnswer, isRemainder: true, quotient, remainder, divisor, dividend };
-    // Remainder answers are typed as "q r r", which only the StoryProblem
-    // component's remainder input accepts — TypeTheAnswer's numeric pad cannot
-    // enter the "r". So remainder exercises are ALWAYS story problems, with a
-    // prompt that explicitly asks for both the share and the leftover.
-    const prompt =
-      `Share ${dividend} ${plural(dividend, 'cookie')} equally among ${divisor} ${plural(divisor, 'friend')}. ` +
-      `How many does each friend get, and how many are left over?`;
-    const instruction = 'Type your answer like "3 r 2" (each, then the leftover)';
-    return { type: 'story-problem', ...base, prompt, instruction };
+      dividend = pick(spec.dividend);
+    } while (dividend % divisor === 0);
+    return { dividend, divisor, quotient: applyOp('÷', dividend, divisor) };
   }
+  const quotient = pick(quotientRange(spec, divisor));
+  return { dividend: divisor * quotient, divisor, quotient };
+}
 
-  const isChallenger = ageBand === '11-12';
-
-  if (isChallenger) {
-    const [lo, hi] = tierWindow(1_000, tier);
-    if (exType === 'story-problem') {
-      // A division story ("how many does each get") implies a whole-number
-      // answer, so build an EXACT division — never a decimal like 17.17 that a
-      // sharing narrative can't represent.
-      const divisor = randInt(2, Math.max(2, Math.min(12, Math.floor(hi / 2) || 2)));
-      const quotient = randInt(Math.max(1, Math.floor(lo / divisor)), Math.max(1, Math.floor(hi / divisor)));
-      const dividend = divisor * quotient;
-      const equation = `${dividend} ÷ ${divisor} = []`;
-      return buildStoryProblem('division', ageBand, dividend, divisor, quotient, equation);
+/**
+ * Draw a raw {a, b, operator, result} triple for any operation. Every
+ * exercise type goes through here, so they all share one difficulty curve.
+ */
+function drawTriple(operation, ageBand, tier, { integerOnly = false } = {}) {
+  const spec = tierSpec(operation, ageBand, tier);
+  const operator = OP_SYMBOL[operation];
+  switch (operation) {
+    case 'addition':
+    case 'multiplication': {
+      let a = pick(spec.a);
+      let b = pick(spec.b);
+      if (randInt(0, 1)) [a, b] = [b, a]; // commutative: show both orders
+      return { a, b, operator, result: applyOp(operator, a, b) };
     }
-    // Challenger: random dividend and divisor, decimal result rounded to 2dp
-    const dividend = randInt(Math.max(1, lo), hi);
-    const divisor = randInt(1, Math.max(2, Math.floor(hi / 2)));
-    const correctAnswer = parseFloat((dividend / divisor).toFixed(2));
-    const equation = `${dividend} ÷ ${divisor} = []`;
-    const isDecimal = !Number.isInteger(correctAnswer);
-    return buildExerciseForType(exType, equation, correctAnswer, isDecimal,
-      { operation: 'division', ageBand, a: dividend, b: divisor });
-  } else {
-    // Explorer: construct a*b then ask a*b ÷ b → integer result
-    const factorMax = 50;
-    const [lo, hi] = tierWindow(factorMax, tier);
-    const b = randInt(Math.max(1, lo), hi);
-    const result = randInt(Math.max(1, lo), hi);
-    const dividend = b * result;
-    const correctAnswer = result;
-    const equation = `${dividend} ÷ ${b} = []`;
-    return buildExerciseForType(exType, equation, correctAnswer, false,
-      { operation: 'division', ageBand, a: dividend, b });
+    case 'subtraction': {
+      const a = pick(spec.a);
+      const b = randInt(spec.b.lo, Math.min(spec.b.hi, a)); // never negative
+      return { a, b, operator, result: a - b };
+    }
+    case 'division': {
+      const { dividend, divisor, quotient } = drawDivision(spec, { integerOnly });
+      return { a: dividend, b: divisor, operator, result: quotient };
+    }
+    default:
+      throw new Error(`Unknown operation: ${operation}`);
   }
+}
+
+/** Forward "a op b = []" exercise (type-answer / select-answer / story-problem). */
+function buildForwardExercise(exType, operation, ageBand, tier) {
+  // A story ("how many does each friend get?") implies a whole-number answer.
+  const t = drawTriple(operation, ageBand, tier, { integerOnly: exType === 'story-problem' });
+  const equation = `${t.a} ${t.operator} ${t.b} = []`;
+  return buildExerciseForType(exType, equation, t.result, !Number.isInteger(t.result),
+    { operation, ageBand, a: t.a, b: t.b });
+}
+
+/** Division-with-remainder story: same divisors/quotients as the tier, plus a leftover. */
+function buildRemainderExercise(ageBand, tier) {
+  const spec = tierSpec('division', ageBand, tier);
+  const { divisor, quotient } = drawDivision(spec, { integerOnly: true });
+  const remainder = randInt(1, divisor - 1); // every curriculum divisor is ≥ 2
+  const dividend = quotient * divisor + remainder;
+  const correctAnswer = `${quotient} r ${remainder}`;
+  const equation = `${dividend} ÷ ${divisor} = []`;
+  const base = { equation, correctAnswer, isRemainder: true, quotient, remainder, divisor, dividend };
+  // Remainder answers are typed as "q r r", which only the StoryProblem
+  // component's remainder input accepts — TypeTheAnswer's numeric pad cannot
+  // enter the "r". So remainder exercises are ALWAYS story problems, with a
+  // prompt that explicitly asks for both the share and the leftover.
+  const prompt =
+    `Share ${dividend} ${plural(dividend, 'cookie')} equally among ${divisor} ${plural(divisor, 'friend')}. ` +
+    `How many does each friend get, and how many are left over?`;
+  const instruction = 'Type your answer like "3 r 2" (each, then the leftover)';
+  return { type: 'story-problem', ...base, prompt, instruction };
 }
 
 // ---------------------------------------------------------------------------
@@ -297,57 +404,17 @@ function buildDivisionExercise(exType, ageBand, tier, variant) {
 // ---------------------------------------------------------------------------
 
 /**
- * Produce a raw {a, b, operator, result} triple using the SAME ranges/guards
- * as the per-operation builders above, so difficulty scaling is identical.
+ * Produce a raw {a, b, operator, result} triple for the equation-puzzle types.
  *
- * Returns `null` for combinations the equation-puzzle types can't safely use
- * (challenger decimal division has no clean draggable operands and no exactly
- * recoverable blank), so callers can fall back to a forward exercise.
+ * Returns `null` for challenger division (its decimal answers have no clean
+ * draggable operands), so callers can fall back to a forward exercise.
  *
  * `clean` is true when both operands are integers and `result` is exact —
  * required for build-equation tiles.
  */
 function makeTriple(operation, ageBand, tier) {
-  switch (operation) {
-    case 'addition': {
-      const rangeMax = AGE_BAND_MAX[ageBand] ?? AGE_BAND_MAX['11-12'];
-      const [lo, hi] = tierWindow(rangeMax, tier);
-      const sum = randInt(lo, hi);
-      const a = randInt(0, sum);
-      const b = sum - a;
-      return { a, b, operator: '+', result: sum, clean: true };
-    }
-    case 'subtraction': {
-      const rangeMax = AGE_BAND_MAX[ageBand] ?? AGE_BAND_MAX['11-12'];
-      const [lo, hi] = tierWindow(rangeMax, tier);
-      const a = randInt(lo, hi);
-      const b = randInt(0, a);
-      return { a, b, operator: '-', result: a - b, clean: true };
-    }
-    case 'multiplication': {
-      const factorMax = ageBand === '11-12' ? 1000 : 50;
-      const [lo, hi] = tierWindow(factorMax, tier);
-      const a = randInt(Math.max(1, lo), hi);
-      const b = randInt(Math.max(1, lo), hi);
-      return { a, b, operator: '×', result: a * b, clean: true };
-    }
-    case 'division': {
-      if (ageBand === '11-12') {
-        // Challenger decimal division — no clean operands / non-recoverable
-        // blank. Signal "unsafe" so the puzzle types fall back.
-        return null;
-      }
-      // Explorer: construct dividend = b * result so division is exact.
-      const factorMax = 50;
-      const [lo, hi] = tierWindow(factorMax, tier);
-      const b = randInt(Math.max(1, lo), hi);
-      const result = randInt(Math.max(1, lo), hi);
-      const dividend = b * result;
-      return { a: dividend, b, operator: '÷', result, clean: true };
-    }
-    default:
-      throw new Error(`Unknown operation: ${operation}`);
-  }
+  if (operation === 'division' && ageBand === '11-12') return null;
+  return { ...drawTriple(operation, ageBand, tier), clean: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -366,12 +433,14 @@ function buildMissingNumberExercise(operation, ageBand, tier) {
   const legal = MISSING_SLOTS[operation];
   let blankSlot = legal[randInt(0, legal.length - 1)];
 
-  // Guard against blanking a slot whose known operand is 0 for × (avoids /0
-  // recovery ambiguity). Multiplication operands are ≥ 1 in practice, so this
-  // is belt-and-suspenders.
+  // A missing factor is really a division ("[] × 47 = 1833" is 1833 ÷ 47), so
+  // only ever blank a times-table factor (≤ 12), which a child can find by
+  // trying facts. With a 2-digit partner, blank the small one; when both
+  // factors are bigger than 12 there is no fair blank, so fall back.
   if (operation === 'multiplication') {
-    if (blankSlot === 'a' && t.b === 0) blankSlot = 'b';
-    else if (blankSlot === 'b' && t.a === 0) blankSlot = 'a';
+    const small = Math.min(t.a, t.b);
+    if (small > 12) return null;
+    if (Math.max(t.a, t.b) > 12) blankSlot = t.a === small ? 'a' : 'b';
   }
 
   const correctAnswer = blankSlot === 'a' ? t.a : t.b;
@@ -412,12 +481,10 @@ function buildBuildEquationExercise(operation, ageBand, tier) {
   if (operator === '-' && result === 0) return null;
 
   // Decoy tiles must stay within the band's representable operand range, so a
-  // tile is never larger than any real operand the child could see. For add/sub
-  // that is AGE_BAND_MAX; for multiplication it's the factor max.
-  const operandMax =
-    operator === '×'
-      ? (ageBand === '11-12' ? 1000 : 50)
-      : (AGE_BAND_MAX[ageBand] ?? AGE_BAND_MAX['11-12']);
+  // tile is never larger than any real operand the child could see in this
+  // unit: the largest operand any tier of the band's curriculum can produce.
+  const bandRows = CURRICULUM[operation][ageBand] ?? CURRICULUM[operation]['11-12'];
+  const operandMax = Math.max(...bandRows.map((row) => Math.max(specMax(row.a), specMax(row.b))));
 
   // A candidate tile forms an unintended solution if, paired (in either order
   // for commutative ops) with the solution operands or another accepted tile,
@@ -522,95 +589,55 @@ function buildExerciseForType(exType, equation, correctAnswer, isDecimal, ctx) {
 }
 
 // ---------------------------------------------------------------------------
-// Follow-pattern builders per operation
+// Follow-pattern builder
 // ---------------------------------------------------------------------------
 
-function buildAdditionFollowPattern(rangeMax, tier) {
-  const [lo, hi] = tierWindow(rangeMax, tier);
-  // Fix b and increment a across three steps
-  const b = randInt(0, Math.floor((hi - lo) / 4));
-  const startA = randInt(lo, Math.max(lo, hi - b - 3));
-
-  return buildFollowPattern((step) => {
-    const a = startA + step;
-    const result = a + b;
-    return {
-      expression: `${a} + ${b}`,
-      result,
-      equation: `${a} + ${b} = []`,
-    };
-  });
-}
-
-function buildSubtractionFollowPattern(rangeMax, tier) {
-  const [lo, hi] = tierWindow(rangeMax, tier);
-  const b = randInt(0, Math.floor((hi - lo) / 4));
-  // startA must be large enough that startA + 2 - b >= 0
-  const minA = Math.max(lo, b);
-  const startA = randInt(minA, Math.max(minA, hi - 3));
-
-  return buildFollowPattern((step) => {
-    const a = startA + step;
-    const result = a - b;
-    return {
-      expression: `${a} - ${b}`,
-      result,
-      equation: `${a} - ${b} = []`,
-    };
-  });
-}
-
-function buildMultiplicationFollowPattern(ageBand, tier) {
-  const factorMax = ageBand === '11-12' ? 1000 : 50;
-  const [lo, hi] = tierWindow(factorMax, tier);
-  const b = randInt(Math.max(1, lo), hi);
-  const startA = randInt(Math.max(1, lo), Math.max(1, hi - 3));
-
-  return buildFollowPattern((step) => {
-    const a = startA + step;
-    const result = a * b;
-    return {
-      expression: `${a} × ${b}`,
-      result,
-      equation: `${a} × ${b} = []`,
-    };
-  });
-}
-
-function buildDivisionFollowPattern(ageBand, tier) {
-  const isChallenger = ageBand === '11-12';
-
-  if (isChallenger) {
-    const [lo, hi] = tierWindow(1_000, tier);
-    const divisor = randInt(1, Math.max(2, Math.floor(hi / 4)));
-    const startDividend = randInt(Math.max(1, lo), Math.max(1, hi - divisor * 3));
-
-    return buildFollowPattern((step) => {
-      const dividend = startDividend + divisor * step;
-      const result = parseFloat((dividend / divisor).toFixed(2));
-      return {
-        expression: `${dividend} ÷ ${divisor}`,
-        result,
-        equation: `${dividend} ÷ ${divisor} = []`,
-      };
-    });
-  } else {
-    // Explorer: keep divisor fixed, increment result by 1 each step
-    const factorMax = 50;
-    const [lo, hi] = tierWindow(factorMax, tier);
-    const divisor = randInt(Math.max(1, lo), hi);
-    const startResult = randInt(Math.max(1, lo), Math.max(1, hi - 3));
-
-    return buildFollowPattern((step) => {
-      const result = startResult + step;
-      const dividend = divisor * result;
-      return {
-        expression: `${dividend} ÷ ${divisor}`,
-        result,
-        equation: `${dividend} ÷ ${divisor} = []`,
-      };
-    });
+/**
+ * Three steps where one operand goes up by 1 and the other stays fixed, all
+ * drawn from the tier's curriculum row (3 × 7, 4 × 7, 5 × 7 …).
+ */
+function buildFollowPatternExercise(operation, ageBand, tier) {
+  const spec = tierSpec(operation, ageBand, tier);
+  let entry; // step → [a, operator, b]
+  switch (operation) {
+    case 'addition': {
+      const a0 = stepStart(spec.a);
+      const b = pick(spec.b);
+      entry = (step) => [a0 + step, '+', b];
+      break;
+    }
+    case 'subtraction': {
+      const a0 = stepStart(spec.a);
+      const b = randInt(spec.b.lo, Math.min(spec.b.hi, a0)); // a0 - b >= 0 on every step
+      entry = (step) => [a0 + step, '-', b];
+      break;
+    }
+    case 'multiplication': {
+      const table = pick(spec.a);
+      const b0 = stepStart(spec.b);
+      entry = (step) => [b0 + step, '×', table];
+      break;
+    }
+    case 'division': {
+      // Whole-number steps even on decimal rows: the divisor stays fixed and
+      // the answer goes up by 1.
+      const divisor = pick(spec.divisor);
+      const q0 = stepStart(quotientRange(spec, divisor));
+      entry = (step) => [divisor * (q0 + step), '÷', divisor];
+      break;
+    }
+    default:
+      throw new Error(`Unknown operation: ${operation}`);
   }
+
+  return buildFollowPattern((step) => {
+    const [a, operator, b] = entry(step);
+    return {
+      expression: `${a} ${operator} ${b}`,
+      result: applyOp(operator, a, b),
+      equation: `${a} ${operator} ${b} = []`,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -641,7 +668,6 @@ export function generateExercises(operation, ageBand, tier, count, options = {})
   // equation string + numeric result answer). Estimation mode needs this —
   // missing-number's answer is an operand and build-equation has no equation.
   const { variant, forwardOnly } = options;
-  const rangeMax = AGE_BAND_MAX[ageBand] ?? AGE_BAND_MAX['11-12'];
   const exercises = [];
 
   for (let i = 0; i < count; i++) {
@@ -682,36 +708,11 @@ export function generateExercises(operation, ageBand, tier, count, options = {})
     }
 
     if (exType === 'follow-pattern') {
-      // Follow-pattern uses dedicated builders per operation
-      switch (operation) {
-        case 'addition':
-          exercise = buildAdditionFollowPattern(rangeMax, tier);
-          break;
-        case 'subtraction':
-          exercise = buildSubtractionFollowPattern(rangeMax, tier);
-          break;
-        case 'multiplication':
-          exercise = buildMultiplicationFollowPattern(ageBand, tier);
-          break;
-        case 'division':
-          exercise = buildDivisionFollowPattern(ageBand, tier);
-          break;
-      }
+      exercise = buildFollowPatternExercise(operation, ageBand, tier);
+    } else if (operation === 'division' && variant === 'remainder') {
+      exercise = buildRemainderExercise(ageBand, tier);
     } else {
-      switch (operation) {
-        case 'addition':
-          exercise = buildAdditionExercise(exType, rangeMax, tier, ageBand);
-          break;
-        case 'subtraction':
-          exercise = buildSubtractionExercise(exType, rangeMax, tier, ageBand);
-          break;
-        case 'multiplication':
-          exercise = buildMultiplicationExercise(exType, ageBand, tier);
-          break;
-        case 'division':
-          exercise = buildDivisionExercise(exType, ageBand, tier, variant);
-          break;
-      }
+      exercise = buildForwardExercise(exType, operation, ageBand, tier);
     }
 
     exercises.push(exercise);

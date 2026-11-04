@@ -79,6 +79,22 @@ describe('makeBuckets', () => {
   });
 });
 
+describe('makeBuckets halfway answers', () => {
+  it('never offers a second bucket that is just as close as the correct one', () => {
+    // 150 is exactly between 100 and 200. Only 200 is graded correct, so 100
+    // must not be on offer — a child picking it would be marked wrong unfairly.
+    for (let i = 0; i < 50; i++) {
+      for (const answer of [150, 250, 35, 4500]) {
+        const { buckets, correctBucket } = makeBuckets(answer);
+        const best = Math.abs(answer - correctBucket);
+        const asClose = buckets.filter((b) => b !== correctBucket && Math.abs(answer - b) <= best);
+        expect(asClose).toEqual([]);
+        expect(new Set(buckets).size).toBe(BUCKET_COUNT);
+      }
+    }
+  });
+});
+
 describe('buildEstimationExercise', () => {
   const source = { type: 'type-answer', equation: '247 + 581 = []', correctAnswer: 828 };
 

@@ -198,6 +198,26 @@ describe('loseHeart', () => {
     const users = await db.users.toArray();
     expect(users[0].hearts).toBe(9);
   });
+
+  it('keeps the running refill clock when already below max', async () => {
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+    useGameStore.setState({ user: { ...getStore().user, hearts: 5, heartsLastRefill: fiveMinAgo } });
+    await getStore().loseHeart();
+    expect(getStore().user.hearts).toBe(4);
+    // Losing a heart must not throw away the 5 minutes already earned.
+    expect(new Date(getStore().user.heartsLastRefill).getTime()).toBe(fiveMinAgo.getTime());
+  });
+
+  it('applies refills already earned before taking the heart', async () => {
+    const twentyFiveMinAgo = new Date(Date.now() - 25 * 60 * 1000);
+    useGameStore.setState({ user: { ...getStore().user, hearts: 5, heartsLastRefill: twentyFiveMinAgo } });
+    await getStore().loseHeart();
+    // 5 + 1 earned refill - 1 lost = 5, with the 5 leftover minutes kept.
+    expect(getStore().user.hearts).toBe(5);
+    expect(new Date(getStore().user.heartsLastRefill).getTime()).toBe(
+      twentyFiveMinAgo.getTime() + 20 * 60 * 1000
+    );
+  });
 });
 
 describe('gainHeart', () => {
@@ -492,6 +512,15 @@ describe('updateSettings re-applies skip logic', () => {
     expect(progress).toHaveLength(10);
   });
 
+  it('re-selecting the current age band keeps progress', async () => {
+    const user = getStore().user;
+    await db.progress.put({ userId: user.id, lessonId: 'math-addition-lesson-1', completed: true, stars: 2, bestAccuracy: 80, attempts: 1 });
+    await getStore().updateSettings({ ageBand: '6-7' }); // already 6-7
+    const progress = await db.progress.toArray();
+    expect(progress).toHaveLength(1);
+    expect(progress[0].stars).toBe(2);
+  });
+
   it('changing from Challenger to Starter clears skip progress', async () => {
     await getStore().updateSettings({ ageBand: '11-12' });
     await getStore().updateSettings({ ageBand: '6-7' });
@@ -547,6 +576,38 @@ describe('daily quests', () => {
     expect(row.questIds).toHaveLength(3);
     expect(row.claimed).toBe(false);
     expect(row.answerCount).toBe(0);
+  });
+
+  it('ensureTodayQuests never picks an operation quest the child cannot play yet', async () => {
+    // On this date the 8-10 pick includes "Answer 10 multiplication questions",
+    // but a new Explorer is in the addition unit — practice doesn't count, so
+    // that quest could never be completed.
+    vi.useFakeTimers({ toFake: ['Date'] }); // clock only — fake-indexeddb needs real timers
+    vi.setSystemTime(new Date('2026-06-08T09:00:00'));
+    try {
+      await getStore().ensureTodayQuests();
+      const row = await db.dailyQuests.get([getStore().user.id, '2026-06-08']);
+      expect(row.questIds).toHaveLength(3);
+      expect(row.questIds).not.toContain('answer-10-mul');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('finishing a unit swaps out an unfinished quest for that unit (it could never be completed)', async () => {
+    const { id } = getStore().user;
+    const today = getLocalDateString();
+    await getStore().ensureTodayQuests();
+    await db.dailyQuests.update([id, today], { questIds: ['streak-5', 'answer-10-add', 'stars-3'] });
+    for (let t = 1; t <= 4; t++) {
+      await db.progress.put({ userId: id, lessonId: `math-addition-lesson-${t}`, completed: true, stars: 3, bestAccuracy: 100, attempts: 1 });
+    }
+    await getStore().completeLesson('math-addition-lesson-5', 100); // now in subtraction
+
+    const row = await db.dailyQuests.get([id, today]);
+    expect(row.questIds).toHaveLength(3);
+    expect(row.questIds).not.toContain('answer-10-add');
+    expect([row.questIds[0], row.questIds[2]]).toEqual(['streak-5', 'stars-3']);
   });
 
   it('ensureTodayQuests is idempotent (does not overwrite progress)', async () => {

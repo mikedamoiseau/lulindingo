@@ -47,11 +47,20 @@ function seededShuffle(items, rng) {
   return arr;
 }
 
-export function selectDailyQuests(dateString, ageBand) {
+/**
+ * @param {string} dateString
+ * @param {string} ageBand
+ * @param {string[]} [playableOps] - operations whose answers can count today.
+ *   Only current-unit lessons accrue quest progress (practice is exempt), so
+ *   an "Answer 10 multiplication questions" quest is impossible for a child in
+ *   the addition unit. When given, operation quests are limited to these.
+ *   Omitted → every operation the age band practises.
+ */
+export function selectDailyQuests(dateString, ageBand, playableOps) {
   const skippedOps = SKIPPED_OPERATIONS_BY_BAND[ageBand] || [];
-  const achievable = QUEST_CATALOG.filter(
-    (q) => !q.operation || !skippedOps.includes(q.operation)
-  );
+  const canPlay = (op) =>
+    playableOps ? playableOps.includes(op) : !skippedOps.includes(op);
+  const achievable = QUEST_CATALOG.filter((q) => !q.operation || canPlay(q.operation));
   const rng = mulberry32(dateSeed(dateString));
   const shuffled = seededShuffle(achievable, rng);
 
@@ -94,6 +103,41 @@ export function evaluateQuest(quest, stats) {
   const raw = rawProgress(quest, stats);
   const progress = Math.min(raw, quest.target);
   return { progress, target: quest.target, done: raw >= quest.target };
+}
+
+/**
+ * Quests are picked once a day, but a child can finish a unit mid-day. An
+ * unfinished operation quest for an operation they can no longer play (the
+ * finished unit collapses and practice doesn't count) would then be stuck.
+ * Swap each such quest, in place, for an achievable one — preferably one that
+ * isn't done yet and whose type isn't already on the board. Others are kept.
+ *
+ * @param {string[]} questIds - today's quest ids
+ * @param {object} stats - today's quest row (answer counts etc.)
+ * @param {string[]} playableOps - operations whose answers can count now
+ * @returns {string[]} the same ids, or a copy with stuck quests replaced
+ */
+export function replaceStuckQuests(questIds, stats, playableOps) {
+  const byId = (id) => QUEST_CATALOG.find((q) => q.id === id);
+  const isStuck = (q) =>
+    q?.operation && !playableOps.includes(q.operation) && !evaluateQuest(q, stats).done;
+  if (!questIds.some((id) => isStuck(byId(id)))) return questIds;
+
+  const result = [...questIds];
+  for (let i = 0; i < result.length; i++) {
+    if (!isStuck(byId(result[i]))) continue;
+    const usedTypes = new Set(result.filter((_, j) => j !== i).map((id) => byId(id)?.type));
+    const achievable = QUEST_CATALOG.filter(
+      (q) => !result.includes(q.id) && (!q.operation || playableOps.includes(q.operation))
+    );
+    const open = achievable.filter((q) => !evaluateQuest(q, stats).done);
+    // Prefer an open quest of a new type, then any open quest. If the child
+    // has already done everything achievable, an already-done quest is still
+    // better than a board they can never finish.
+    const pick = open.find((q) => !usedTypes.has(q.type)) ?? open[0] ?? achievable[0];
+    if (pick) result[i] = pick.id;
+  }
+  return result;
 }
 
 export function allQuestsDone(quests, stats) {
